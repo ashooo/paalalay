@@ -2,7 +2,7 @@
  * ============================================================================
  * PLACEHOLDER / SYNTHETIC DOCTORS & SPECIALISTS SEED DATA
  * ============================================================================
- * 
+ *
  * CRITICAL COMPLIANCE NOTICE:
  * Per DEV3_CONTEXT.md Section 8 and Section 14 (Privacy and Safety Rules):
  * 1. The records below are intentionally synthetic PLACEHOLDER data for
@@ -21,7 +21,7 @@ import type { DoctorModel } from '../contracts.proposal';
 
 export const PLACEHOLDER_DOCTORS: readonly DoctorModel[] = [
   {
-    id: 'placeholder-doc-001',
+    id: '00000000-0000-4000-8000-000000000001',
     doctor_name: 'Dr. Sample Cardiologist (Placeholder)',
     specialty: 'Cardiology',
     facility_name: 'Sample Metro Heart Clinic (Placeholder)',
@@ -34,7 +34,7 @@ export const PLACEHOLDER_DOCTORS: readonly DoctorModel[] = [
     verified_at: null,
   },
   {
-    id: 'placeholder-doc-002',
+    id: '00000000-0000-4000-8000-000000000002',
     doctor_name: 'Dr. Example Endocrinologist (Placeholder)',
     specialty: 'Endocrinology',
     facility_name: 'Sample Diabetes & Endocrine Center (Placeholder)',
@@ -47,7 +47,7 @@ export const PLACEHOLDER_DOCTORS: readonly DoctorModel[] = [
     verified_at: null,
   },
   {
-    id: 'placeholder-doc-003',
+    id: '00000000-0000-4000-8000-000000000003',
     doctor_name: null,
     specialty: 'General Medicine',
     facility_name: 'Sample Community Health Center (Placeholder)',
@@ -60,7 +60,7 @@ export const PLACEHOLDER_DOCTORS: readonly DoctorModel[] = [
     verified_at: null,
   },
   {
-    id: 'placeholder-doc-004',
+    id: '00000000-0000-4000-8000-000000000004',
     doctor_name: 'Dr. Demo Pulmonologist (Placeholder)',
     specialty: 'Pulmonology',
     facility_name: 'Sample Respiratory Care Unit (Placeholder)',
@@ -73,7 +73,7 @@ export const PLACEHOLDER_DOCTORS: readonly DoctorModel[] = [
     verified_at: null,
   },
   {
-    id: 'placeholder-doc-005',
+    id: '00000000-0000-4000-8000-000000000005',
     doctor_name: 'Dr. Mock Pediatrician (Placeholder)',
     specialty: 'Pediatrics',
     facility_name: 'Sample Children Wellness Clinic (Placeholder)',
@@ -86,7 +86,7 @@ export const PLACEHOLDER_DOCTORS: readonly DoctorModel[] = [
     verified_at: null,
   },
   {
-    id: 'placeholder-doc-006',
+    id: '00000000-0000-4000-8000-000000000006',
     doctor_name: null,
     specialty: 'Cardiology',
     facility_name: 'Sample Provincial General Hospital (Placeholder)',

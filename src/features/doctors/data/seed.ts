@@ -1,10 +1,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { initializeDatabase } from '@/db';
+import { getDatabase, initializeDatabase } from '@/db';
 import { PLACEHOLDER_DOCTORS } from './placeholder-doctors';
 
 /**
  * Idempotent seeder for placeholder doctors.
- * 
+ *
  * DESIGN RATIONALE:
  * We chose a dedicated idempotent seed function over a database migration file because:
  * 1. It prevents contaminating the permanent schema migration history (schema_migrations)
@@ -23,7 +23,16 @@ export async function seedPlaceholderDoctors(
   if (seedPromise) return seedPromise;
 
   seedPromise = (async () => {
-    const database = db ?? (await initializeDatabase());
+    let database: SQLiteDatabase;
+    if (db) {
+      database = db;
+    } else {
+      try {
+        database = await getDatabase();
+      } catch {
+        database = await initializeDatabase();
+      }
+    }
 
     // Check if doctors are already seeded to skip unnecessary transactions
     try {
@@ -39,42 +48,42 @@ export async function seedPlaceholderDoctors(
 
     let insertedCount = 0;
 
-  await database.withTransactionAsync(async () => {
-    for (const doc of PLACEHOLDER_DOCTORS) {
-      const result = await database.runAsync(
-        `INSERT OR IGNORE INTO doctors (
-          id,
-          doctor_name,
-          specialty,
-          facility_name,
-          address,
-          city,
-          latitude,
-          longitude,
-          phone,
-          source_url,
-          verified_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-        [
-          doc.id,
-          doc.doctor_name,
-          doc.specialty,
-          doc.facility_name,
-          doc.address,
-          doc.city,
-          doc.latitude,
-          doc.longitude,
-          doc.phone,
-          doc.source_url,
-          doc.verified_at,
-        ]
-      );
+    await database.withTransactionAsync(async () => {
+      for (const doc of PLACEHOLDER_DOCTORS) {
+        const result = await database.runAsync(
+          `INSERT OR IGNORE INTO doctors (
+            id,
+            doctor_name,
+            specialty,
+            facility_name,
+            address,
+            city,
+            latitude,
+            longitude,
+            phone,
+            source_url,
+            verified_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            doc.id,
+            doc.doctor_name,
+            doc.specialty,
+            doc.facility_name,
+            doc.address,
+            doc.city,
+            doc.latitude,
+            doc.longitude,
+            doc.phone,
+            doc.source_url,
+            doc.verified_at,
+          ]
+        );
 
-      if (result.changes > 0) {
-        insertedCount += result.changes;
+        if (result.changes > 0) {
+          insertedCount += result.changes;
+        }
       }
-    }
-  });
+    });
 
     return {
       insertedCount,
