@@ -24,6 +24,8 @@ const orderedDates = (from?: string, to?: string) => !from || !to || from <= to;
 const rangeError = { message: 'End date must be on or after start date.' };
 
 export const toolInputSchemas = {
+  lookup_medicine_reference: z.strictObject({ medicine: text.max(100) }),
+  search_medicine_guidance: z.strictObject({ medicine: text.max(100), topic: z.enum(['missed_dose', 'food', 'general_safety']) }),
   create_medication: z.strictObject({
     name: text, strength_text: text, dosage_form: text.optional(), instructions: text.optional(),
     start_date: date.optional(), end_date: date.optional(),
@@ -70,6 +72,8 @@ export const toolInputSchemas = {
 const object = z.record(z.string(), z.unknown());
 const logOutput = <T extends string>(type: T) => z.object({ log_id: uuid, log_type: z.literal(type), recorded_at: utc });
 export const toolOutputSchemas = {
+  lookup_medicine_reference: z.object({ matches: z.array(z.object({ name: text, page: z.number().int() })), guidance_available: z.literal(false), source: text }),
+  search_medicine_guidance: z.object({ sources: z.array(z.object({ title: text, url: z.url(), excerpt: z.string().optional() })), provider: z.literal('NHS'), checked_at: utc, note: text }),
   create_medication: z.object({ medication_id: uuid, name: text, is_active: z.boolean() }),
   list_medications: z.object({ medications: z.array(z.object({ id: uuid, name: text, strength_text: text, is_active: z.boolean() })) }),
   get_today_medications: z.object({ items: z.array(z.object({ medication_id: uuid, schedule_id: uuid, time_local: time, status: text })) }),
@@ -92,6 +96,8 @@ export type ToolData<N extends ToolName> = z.output<(typeof toolOutputSchemas)[N
 export type ToolHandlers = { [N in ToolName]?: (args: ToolInput<N>) => Promise<ToolResult<ToolData<N>>> };
 
 export const toolMetadata = {
+  lookup_medicine_reference: { owner: 'Dev 1', mode: 'read', title: 'Check local medicine reference', description: 'Search the local PNF medicine-name reference first. Names only: no prescribing or missed-dose guidance. Suggestions require user verification.' },
+  search_medicine_guidance: { owner: 'Dev 1', mode: 'online', title: 'Allow online medicine lookup?', description: 'After checking the local medicine reference, request user permission to find NHS guidance links for a user-supplied medicine and missed-dose, food, or general safety topic. Never prescribe or infer doses.' },
   create_medication: { owner: 'Dev 2', mode: 'write', title: 'Add medication', description: 'Save a medication with a user-verified name and strength. Never infer dosing.' },
   list_medications: { owner: 'Dev 2', mode: 'read', title: 'List medications', description: 'List existing medications; active only by default.' },
   get_today_medications: { owner: 'Dev 2', mode: 'read', title: 'View medication reminders', description: 'Get reminders for a device-local date.' },
@@ -106,7 +112,7 @@ export const toolMetadata = {
   get_health_history: { owner: 'Dev 2', mode: 'read', title: 'View health history', description: 'Get typed health events for a date range.' },
   get_health_summary: { owner: 'Dev 3', mode: 'read', title: 'View health summary', description: 'Aggregate existing health records for an explicit date range.' },
   search_specialists: { owner: 'Dev 3', mode: 'read', title: 'Find specialists', description: 'Search the curated offline directory. Never invent directory entries.' },
-} as const satisfies Record<ToolName, { owner: string; mode: 'read' | 'write'; title: string; description: string }>;
+} as const satisfies Record<ToolName, { owner: string; mode: 'read' | 'write' | 'online'; title: string; description: string }>;
 
 export function isToolName(name: string): name is ToolName {
   return Object.prototype.hasOwnProperty.call(toolInputSchemas, name);

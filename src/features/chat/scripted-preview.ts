@@ -9,11 +9,14 @@ export function createScriptedPreview(): LocalModelRuntime {
       const last = messages[messages.length - 1];
       if (last.role === 'tool') {
         const response = JSON.parse(last.content);
+        if (last.name === 'lookup_medicine_reference' && response.status === 'success') return { text: '', toolCalls: [{ name: 'search_medicine_guidance', arguments: '{"medicine":"Amoxicillin","topic":"missed_dose"}' }] };
+        if (last.name === 'search_medicine_guidance') return { text: response.status === 'success' ? 'The online source was found. Open the NHS link and verify your exact product leaflet or ask a pharmacist. This scripted preview provides no clinical advice.' : response.error.message, toolCalls: [] };
         return { text: response.status === 'success'
           ? 'The synthetic mock handler completed. No record was saved.'
           : response.error.code === 'CANCELLED' ? 'Cancelled. No mock action ran.'
             : 'Please provide both systolic and diastolic readings before recording blood pressure.', toolCalls: [] };
       }
+      if (last.content === 'Find missed-dose information for Amoxicillin.') return { text: '', toolCalls: [{ name: 'lookup_medicine_reference', arguments: '{"medicine":"Amoxicillin"}' }] };
       if (last.content === 'List my medications.') {
         return { text: '', toolCalls: [{ name: 'list_medications', arguments: '{}' }] };
       }

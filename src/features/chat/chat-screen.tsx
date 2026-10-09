@@ -3,11 +3,20 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createAgentController } from '@/ai/agent-controller';
+import { createMedicineReferenceHandlers } from '@/ai/medicine-guidance';
+import { Link } from 'expo-router';
 import { createLocalModelRuntime } from '@/ai/local-model';
 import { createMockToolHandlers } from '@/ai/mock-handlers';
 import { Colors } from '@/constants/theme';
 import { createDatabaseToolHandlers, prepareChatDatabase, testDatabasePersistence } from '@/db/chat-storage';
 import { createScriptedPreview } from './scripted-preview';
+
+function guidanceSources(content: string): { title: string; url: string }[] {
+  try {
+    const result = JSON.parse(content);
+    return result.status === 'success' ? result.data.sources.filter((source: { title?: unknown; url?: unknown }) => typeof source.title === 'string' && typeof source.url === 'string' && /^https:\/\/www\.nhs\.uk\/medicines\/[a-z0-9-/]+\/$/.test(source.url)) : [];
+  } catch { return []; }
+}
 
 function Button({ title, disabled, secondary, onPress }: {
   title: string; disabled?: boolean; secondary?: boolean; onPress: () => void;
@@ -36,8 +45,8 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
   const styles = useChatStyles();
   const persistent = database && !preview;
   const [session] = useState(() => {
-    const runtime = preview ? createScriptedPreview() : createLocalModelRuntime(['list_medications', 'log_blood_pressure']);
-    return { runtime, agent: createAgentController(runtime, persistent ? createDatabaseToolHandlers() : createMockToolHandlers(), { persistentTools: persistent }) };
+    const runtime = preview ? createScriptedPreview() : createLocalModelRuntime(['list_medications', 'log_blood_pressure', 'lookup_medicine_reference', 'search_medicine_guidance']);
+    return { runtime, agent: createAgentController(runtime, { ...(persistent ? createDatabaseToolHandlers() : createMockToolHandlers()), ...createMedicineReferenceHandlers() }, { persistentTools: persistent }) };
   });
   const snapshot = useSyncExternalStore(session.agent.subscribe, session.agent.getSnapshot, session.agent.getSnapshot);
   const [uri, setUri] = useState('file:///data/user/0/com.paalalay.app/files/models/Qwen3-0.6B-Q8_0.gguf');
@@ -125,7 +134,7 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
   }
 
   const status = {
-    idle: 'Ready', generating: 'Generating locally…', executing: persistent ? 'Running SQLite handler…' : 'Running mock handler…',
+    idle: 'Ready', generating: 'Generating locally…', executing: 'Running tool…',
     awaiting_confirmation: 'Waiting for your review', stopping: 'Stopping; waiting for the current operation…',
   }[snapshot.phase];
 
@@ -176,6 +185,7 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
         </View>}
 
         <View style={styles.actions}>
+          <Button title="Online permission sample" secondary disabled={locked || !loaded} onPress={() => send('Find missed-dose information for Amoxicillin.')} />
           <Button title="List medications sample" secondary disabled={locked || !loaded} onPress={() => send('List my medications.')} />
           <Button title="BP 120/80 sample" secondary disabled={locked || !loaded} onPress={() => send('Record my blood pressure as 120/80.')} />
           <Button title="Missing BP sample" secondary disabled={locked || !loaded} onPress={() => send('Record my blood pressure.')} />
@@ -183,18 +193,19 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
 
         {!snapshot.entries.length && <Text style={styles.empty}>{preview ? 'Choose a sample to exercise the conversation loop. Each write pauses here for your confirmation.' : 'Load your model to start a conversation. Each write pauses here for your confirmation.'}</Text>}
         {snapshot.entries.map((item) => <View key={item.id} style={[styles.message, item.role === 'user' && styles.userMessage, item.role === 'notice' && styles.statusMessage]}>
-          <Text style={styles.messageLabel}>{item.role === 'tool' ? `${persistent ? 'SQLite' : 'Mock'} tool result · ${item.toolName}` : item.role === 'notice' ? 'Action status' : item.role === 'user' ? 'You' : preview ? 'Scripted assistant' : 'Local assistant'}</Text>
+          <Text style={styles.messageLabel}>{item.role === 'tool' ? `${item.toolName === 'search_medicine_guidance' ? 'Online reference' : item.toolName === 'lookup_medicine_reference' ? 'Local reference' : persistent ? 'SQLite' : 'Mock'} tool result · ${item.toolName}` : item.role === 'notice' ? 'Action status' : item.role === 'user' ? 'You' : preview ? 'Scripted assistant' : 'Local assistant'}</Text>
           <Text selectable style={item.role === 'tool' ? styles.code : styles.messageText}>{item.content}</Text>
+          {item.toolName === 'search_medicine_guidance' && guidanceSources(item.content).map(source => <Link key={source.url} href={source.url as `https://${string}`} style={styles.messageText}>{source.title} · Open NHS source</Link>)}
         </View>)}
 
         {snapshot.review && <View style={styles.review}>
           <Text style={styles.reviewTitle}>{snapshot.review.title}</Text>
-          <Text style={styles.body}>{persistent ? 'Review every value. Confirm saves this blood-pressure record to SQLite on this device.' : 'Review every value. Confirm runs a mock handler; no record is saved.'}</Text>
+          <Text style={styles.body}>{snapshot.review.toolName === 'search_medicine_guidance' ? 'Allow this lookup on nhs.uk? NHS receives your IP address and the requested medicine page. Only the medicine name and topic below select the lookup; your chat and saved records stay local. Approval applies once. Internet is required. Results are general source information, not a prescription. Check your exact product leaflet or pharmacist.' : persistent ? 'Review every value. Confirm saves this blood-pressure record to SQLite on this device.' : 'Review every value. Confirm runs a mock handler; no record is saved.'}</Text>
           {snapshot.review.fields.map((field) => <View key={field.label} style={styles.field}>
             <Text style={styles.label}>{field.label}</Text><Text selectable style={styles.messageText}>{field.value}</Text>
           </View>)}
           <View style={styles.actions}>
-            <Button title={persistent ? 'Confirm and save' : 'Confirm mock action'} disabled={actionBusy} onPress={() => resolveReview(true)} />
+            <Button title={snapshot.review.toolName === 'search_medicine_guidance' ? 'Allow this online lookup' : persistent ? 'Confirm and save' : 'Confirm mock action'} disabled={actionBusy} onPress={() => resolveReview(true)} />
             <Button title="Cancel action" secondary disabled={actionBusy} onPress={() => resolveReview(false)} />
           </View>
         </View>}

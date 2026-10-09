@@ -14,6 +14,7 @@ export type DispatchOutcome =
   | { kind: 'confirmation'; review: ConfirmationReview };
 
 const labels: Record<string, string> = {
+  medicine: 'Medicine name sent to NHS lookup', topic: 'Guidance topic',
   name: 'Medication name', strength_text: 'Strength', dosage_form: 'Form', instructions: 'Instructions',
   start_date: 'Start date', end_date: 'End date', source: 'Source', medication_id: 'Medication ID',
   times_local: 'Reminder times (local)', days_of_week: 'Days', starts_on: 'Starts on', ends_on: 'Ends on',
@@ -63,7 +64,7 @@ export function createToolDispatcher(handlers: ToolHandlers) {
       }
       if (!registered[name]) return { kind: 'result', toolName: name, result: toolError('NOT_FOUND', 'This feature is not connected yet.') };
       const args = parsed.data;
-      if (toolMetadata[name].mode === 'write') {
+      if (toolMetadata[name].mode !== 'read') {
         const id = ++nextId;
         pending = { id, name, args };
         const fields = Object.entries(args).map(([key, value]) => Object.freeze({ label: labels[key] ?? key, value: displayValue(key, value) }));

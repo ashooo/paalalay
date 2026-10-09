@@ -36,6 +36,7 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
   let callId = 0;
   let pending: { review: ConfirmationReview; call: Required<ModelToolCall>; writeKey?: string } | undefined;
   const successfulWrites = new Set<string>();
+  const localMedicineChecks = new Set<string>();
   const current = () => history[history.length - 1];
 
   function publish(phase: AgentPhase) {
@@ -53,6 +54,12 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
     current().push({ role: 'tool', name: call.name, tool_call_id: call.id, content: JSON.stringify(result) });
     entry('tool', JSON.stringify(result, null, 2), call.name);
     if (result.status === 'error') finalOnly = true;
+    // Online pages can never cause subsequent tool actions or changes to records.
+    if (call.name === 'search_medicine_guidance') finalOnly = true;
+    if (call.name === 'lookup_medicine_reference' && result.status === 'success') {
+      const args = JSON.parse(call.arguments) as { medicine: string };
+      localMedicineChecks.add(args.medicine.trim().toLowerCase());
+    }
   }
 
   async function context(withTools: boolean) {
@@ -102,6 +109,13 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
       let args: unknown;
       try { args = JSON.parse(call.arguments); }
       catch { appendResult(call, toolError('VALIDATION_ERROR', 'Tool arguments were not valid JSON. Ask the user to clarify.')); continue; }
+      if (call.name === 'search_medicine_guidance') {
+        const parsed = toolInputSchemas.search_medicine_guidance.safeParse(args);
+        if (parsed.success && !localMedicineChecks.has(parsed.data.medicine.toLowerCase())) {
+          appendResult(call, toolError('PERMISSION_DENIED', 'Check lookup_medicine_reference for this medicine first. No internet request was made. Ask the user to try again.'));
+          continue;
+        }
+      }
       let writeKey: string | undefined;
       if (isToolName(call.name) && toolMetadata[call.name].mode === 'write') {
         const validated = toolInputSchemas[call.name].safeParse(args);
@@ -149,6 +163,7 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
       calls = 0;
       finalOnly = false;
       successfulWrites.clear();
+      localMedicineChecks.clear();
       history.push([{ role: 'user', content: text.trim() }]);
       entry('user', text.trim());
       publish('generating');
@@ -201,6 +216,7 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
       calls = 0;
       usedCallIds.clear();
       successfulWrites.clear();
+      localMedicineChecks.clear();
       publish('idle');
     },
     async dispose() {

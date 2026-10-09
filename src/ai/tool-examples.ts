@@ -5,6 +5,8 @@ const instant = '2026-10-09T10:00:00.000Z';
 
 /** Synthetic inputs only. These are not instructions or inferred patient values. */
 export const toolExamples = {
+  lookup_medicine_reference: { medicine: 'Amoxicillin' },
+  search_medicine_guidance: { medicine: 'Amoxicillin', topic: 'missed_dose' },
   create_medication: { name: 'Example medicine', strength_text: '5 mg', source: 'manual' },
   list_medications: { active_only: true },
   get_today_medications: {},
