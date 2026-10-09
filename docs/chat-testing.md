@@ -24,6 +24,20 @@ Chat history is still held only in memory. Browser preview continues using mocks
 The save test uses the app's `paalalay.db`, rather than the README's desktop
 SQLite command. For inspection, use Expo's SQLite DevTools inspector.
 
+Verified on the Android x86_64 emulator with Qwen3-0.6B-Q8_0: native setup
+recognized migration 1; the direct synthetic save survived closing and reopening
+SQLite. The model selected `log_blood_pressure`, displayed a confirmation, and
+after approval inserted exactly one row and explained the real returned log ID.
+Cancellation left the row count unchanged. The successful prompt explicitly
+supplied 120/80, pulse 60, and the synthetic timestamp `2023-10-05T12:00:00Z`.
+
+Known model limitation: the short BP sample also proposed an unsupplied pulse
+and historical timestamp. That proposal was cancelled. Schema validation checks
+types and ranges, rather than proving values came from the user. Review all fields
+and cancel invented values; this model has not passed the no-guessing criterion.
+Empty `<think>` markers can also appear in its displayed final response despite
+thinking being disabled. Chat tool selection remains model-dependent.
+
 The GGUF in `assets/models/Qwen3-0.6B-Q8_0.gguf` must be copied onto the device
 separately. For a connected device with a debuggable `com.paalalay.app` installed,
 run these commands from the project root (they copy only the model file):
