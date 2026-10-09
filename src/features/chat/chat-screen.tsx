@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createAgentController } from '@/ai/agent-controller';
 import { createLocalModelRuntime } from '@/ai/local-model';
 import { createMockToolHandlers } from '@/ai/mock-handlers';
-import { BottomTabInset } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { createDatabaseToolHandlers, prepareChatDatabase, testDatabasePersistence } from '@/db/chat-storage';
 import { createScriptedPreview } from './scripted-preview';
 
 function Button({ title, disabled, secondary, onPress }: {
   title: string; disabled?: boolean; secondary?: boolean; onPress: () => void;
 }) {
+  const styles = useChatStyles();
   return <Pressable accessibilityRole="button" accessibilityLabel={title} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [styles.button, secondary && styles.secondary, (pressed || disabled) && styles.dim]}>
     <Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text>
@@ -32,6 +33,7 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
   preview: boolean; database: boolean; databaseReport: string; databaseReady: (report: string) => void;
   reportDatabase: (report: string) => void; switchPreview: () => void; restartSession: () => void;
 }) {
+  const styles = useChatStyles();
   const persistent = database && !preview;
   const [session] = useState(() => {
     const runtime = preview ? createScriptedPreview() : createLocalModelRuntime(['list_medications', 'log_blood_pressure']);
@@ -131,8 +133,8 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => { if (snapshot.entries.length) scrollRef.current?.scrollToEnd({ animated: true }); }}>
-        <Text style={styles.eyebrow}>PAALALAY / DEVELOPMENT</Text>
-        <Text style={styles.heading}>Chat</Text>
+        <Text style={styles.eyebrow}>RUNS ON THIS DEVICE</Text>
+        <Text style={styles.heading}>Alalay assistant</Text>
         <View style={styles.notice}>
           <Text style={styles.noticeTitle}>{preview ? 'SCRIPTED UI PREVIEW · NO MODEL INFERENCE' : persistent ? 'LOCAL MODEL · SQLITE SERVICES' : 'LOCAL MODEL · MOCK SERVICES'}</Text>
           <Text style={styles.body}>{persistent ? 'Chat history stays in memory. Medication listing reads SQLite; confirmed blood-pressure actions save locally. Use synthetic test values.' : 'History stays in memory. Only medication listing and blood-pressure recording have synthetic handlers. No health records are saved.'}</Text>
@@ -213,31 +215,35 @@ function ChatSession({ preview, database, databaseReport, databaseReady, reportD
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 }, safe: { flex: 1, backgroundColor: '#eef3f6' },
-  content: { padding: 20, paddingTop: Platform.OS === 'web' ? 100 : 20, gap: 16, width: '100%', maxWidth: 800, alignSelf: 'center' },
-  eyebrow: { color: '#486373', fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
-  heading: { color: '#132e3d', fontSize: 30, fontWeight: '700' },
-  notice: { backgroundColor: '#e0f0ec', padding: 16, borderRadius: 12, gap: 10 },
-  noticeTitle: { color: '#135646', fontSize: 13, fontWeight: '700' },
-  body: { color: '#344e5d', fontSize: 14, lineHeight: 21 },
-  card: { padding: 16, backgroundColor: '#fff', borderRadius: 12, gap: 10 },
-  label: { color: '#344e5d', fontSize: 13, fontWeight: '700' },
-  input: { minHeight: 48, borderWidth: 1, borderColor: '#b7cbd7', borderRadius: 8, padding: 12, color: '#132e3d', backgroundColor: '#f8fafb', fontSize: 14 },
+function useChatStyles() {
+  const scheme = useColorScheme();
+  const c = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  return useMemo(() => StyleSheet.create({
+  flex: { flex: 1 }, safe: { flex: 1, backgroundColor: c.background },
+  content: { padding: 20, paddingTop: 16, gap: 16, width: '100%', maxWidth: 800, alignSelf: 'center' },
+  eyebrow: { fontFamily: 'Manrope_700Bold',  color: c.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
+  heading: { fontFamily: 'Manrope_700Bold',  color: c.text, fontSize: 30, fontWeight: '700' },
+  notice: { backgroundColor: c.surfaceVariant, padding: 16, borderRadius: 12, gap: 10 },
+  noticeTitle: { fontFamily: 'Manrope_700Bold',  color: c.primary, fontSize: 13, fontWeight: '700' },
+  body: { fontFamily: 'Manrope_400Regular',  color: c.textMuted, fontSize: 14, lineHeight: 21 },
+  card: { padding: 16, backgroundColor: c.surface, borderRadius: 12, gap: 10 },
+  label: { fontFamily: 'Manrope_700Bold',  color: c.textMuted, fontSize: 13, fontWeight: '700' },
+  input: { fontFamily: 'Manrope_400Regular',  minHeight: 48, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 12, color: c.text, backgroundColor: c.surface, fontSize: 14 },
   draft: { minHeight: 56, maxHeight: 130, textAlignVertical: 'top' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  button: { minHeight: 44, backgroundColor: '#15675b', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, justifyContent: 'center' },
-  secondary: { backgroundColor: '#dce8ee' }, buttonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  secondaryText: { color: '#244b5e' }, dim: { opacity: 0.45 },
-  empty: { color: '#627987', fontSize: 15, paddingVertical: 20 },
-  message: { backgroundColor: '#fff', padding: 16, borderRadius: 14, gap: 8 },
-  userMessage: { backgroundColor: '#dcefe9', marginLeft: 24 }, statusMessage: { backgroundColor: '#e4ebef' },
-  messageLabel: { color: '#486373', fontSize: 12, fontWeight: '700' },
-  messageText: { color: '#132e3d', fontSize: 15, lineHeight: 23 },
-  code: { color: '#213e4e', fontSize: 12, lineHeight: 19, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  review: { backgroundColor: '#fff', borderWidth: 2, borderColor: '#248771', padding: 16, borderRadius: 14, gap: 12 },
-  reviewTitle: { color: '#135646', fontSize: 20, fontWeight: '700' }, field: { gap: 4 },
-  composer: { gap: 10, padding: 16, paddingBottom: Platform.OS === 'web' ? 16 : BottomTabInset + 16, borderTopWidth: 1, borderColor: '#cbdbe4', backgroundColor: '#fff', width: '100%', maxWidth: 800, alignSelf: 'center' },
+  button: { minHeight: 48, backgroundColor: c.primary, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12, justifyContent: 'center' },
+  secondary: { backgroundColor: c.surfaceVariant }, buttonText: { fontFamily: 'Manrope_700Bold',  color: c.onPrimary, fontSize: 13, fontWeight: '700' },
+  secondaryText: { color: c.primary }, dim: { opacity: 0.45 },
+  empty: { fontFamily: 'Manrope_400Regular',  color: c.textMuted, fontSize: 15, paddingVertical: 20 },
+  message: { backgroundColor: c.surface, padding: 16, borderRadius: 14, gap: 8 },
+  userMessage: { backgroundColor: c.surfaceVariant, marginLeft: 24 }, statusMessage: { backgroundColor: c.surfaceVariant },
+  messageLabel: { fontFamily: 'Manrope_700Bold',  color: c.textMuted, fontSize: 12, fontWeight: '700' },
+  messageText: { fontFamily: 'Manrope_400Regular',  color: c.text, fontSize: 15, lineHeight: 23 },
+  code: { color: c.text, fontSize: 12, lineHeight: 19, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  review: { backgroundColor: c.surface, borderWidth: 2, borderColor: c.primary, padding: 16, borderRadius: 14, gap: 12 },
+  reviewTitle: { fontFamily: 'Manrope_700Bold',  color: c.primary, fontSize: 20, fontWeight: '700' }, field: { gap: 4 },
+  composer: { gap: 10, padding: 16, borderTopWidth: 1, borderColor: c.border, backgroundColor: c.surface, width: '100%', maxWidth: 800, alignSelf: 'center' },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  status: { color: '#486373', fontSize: 12, flexGrow: 1 }, error: { color: '#9b2635', fontSize: 14, lineHeight: 21 },
-});
+  status: { fontFamily: 'Manrope_400Regular',  color: c.textMuted, fontSize: 12, flexGrow: 1 }, error: { fontFamily: 'Manrope_400Regular',  color: c.error, fontSize: 14, lineHeight: 21 },
+  }), [c]);
+}

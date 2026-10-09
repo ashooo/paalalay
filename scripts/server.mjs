@@ -1,177 +1,14 @@
 import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PORT = 3000;
-const DB_FILE = join(process.cwd(), 'paalalay.db');
+const DB_FILE = process.env.PAALALAY_DB_PATH || join(process.cwd(), 'paalalay.db');
+if (!existsSync(DB_FILE)) throw new Error('Database missing. Explicit setup is required; server startup never initializes or seeds data.');
 
-// Ensure database and tables exist
 const db = new DatabaseSync(DB_FILE);
-db.exec('PRAGMA foreign_keys = ON;');
-
-const schemaFile = join(process.cwd(), 'src/db/schema.sql');
-if (existsSync(schemaFile)) {
-  const sql = readFileSync(schemaFile, 'utf8');
-  db.exec(sql);
-}
-
-// Ensure Curated Doctors Seed Data
-const countRow = db.prepare('SELECT COUNT(*) as count FROM doctors;').get();
-if (!countRow || countRow.count === 0) {
-  const seedDocs = [
-    {
-      id: 'doc_phc_cardio_01',
-      doctor_name: 'Dr. Ramon Reyes, MD, FPCP, FPCC',
-      specialty: 'cardiology',
-      facility_name: 'Philippine Heart Center',
-      address: 'East Avenue, Diliman',
-      city: 'Quezon City',
-      latitude: 14.6465,
-      longitude: 121.0505,
-      phone: '+63 2 8925 2401',
-      source_url: 'https://phc.gov.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_slmc_cardio_02',
-      doctor_name: 'Dr. Maria Elena Fernandez, MD',
-      specialty: 'cardiology',
-      facility_name: "St. Luke's Medical Center - Global City",
-      address: '32nd St. corner 5th Ave, Bonifacio Global City',
-      city: 'Taguig',
-      latitude: 14.5539,
-      longitude: 121.0478,
-      phone: '+63 2 8789 7700',
-      source_url: 'https://stlukes.com.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_pgh_endo_01',
-      doctor_name: 'Dr. Juan Carlos Dizon, MD, FPCP',
-      specialty: 'endocrinology',
-      facility_name: 'Philippine General Hospital (PGH)',
-      address: 'Taft Avenue, Ermita',
-      city: 'Manila',
-      latitude: 14.5794,
-      longitude: 120.9886,
-      phone: '+63 2 8554 8400',
-      source_url: 'https://pgh.gov.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_nkti_nephro_01',
-      doctor_name: 'Dr. Angela Soriano, MD',
-      specialty: 'nephrology',
-      facility_name: 'National Kidney and Transplant Institute',
-      address: 'East Avenue, Diliman',
-      city: 'Quezon City',
-      latitude: 14.6471,
-      longitude: 121.0489,
-      phone: '+63 2 8981 0300',
-      source_url: 'https://nkti.gov.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_lung_pulmo_01',
-      doctor_name: 'Dr. Antonio Bautista, MD, FPCP, FPCCP',
-      specialty: 'pulmonology',
-      facility_name: 'Lung Center of the Philippines',
-      address: 'Quezon Avenue, Diliman',
-      city: 'Quezon City',
-      latitude: 14.6486,
-      longitude: 121.0447,
-      phone: '+63 2 8924 6101',
-      source_url: 'https://lcp.gov.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_mmc_genmed_01',
-      doctor_name: 'Dr. Patricia Santos, MD',
-      specialty: 'general_medicine',
-      facility_name: 'Makati Medical Center',
-      address: '2 Amorsolo Street, Legaspi Village',
-      city: 'Makati',
-      latitude: 14.5591,
-      longitude: 121.0147,
-      phone: '+63 2 8888 8999',
-      source_url: 'https://makatimed.net.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_chonghua_cardio_01',
-      doctor_name: 'Dr. Vicente Lim, MD, FPCP',
-      specialty: 'cardiology',
-      facility_name: 'Chong Hua Hospital',
-      address: 'Don Mariano Cui Street, Fuente Osmeña',
-      city: 'Cebu City',
-      latitude: 10.3129,
-      longitude: 123.8924,
-      phone: '+63 32 255 8000',
-      source_url: 'https://chonghua.com.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_spmc_geriatrics_01',
-      doctor_name: 'Dr. Teresa Morales, MD',
-      specialty: 'geriatrics',
-      facility_name: 'Southern Philippines Medical Center',
-      address: 'J.P. Laurel Avenue, Bajada',
-      city: 'Davao City',
-      latitude: 7.0917,
-      longitude: 125.6175,
-      phone: '+63 82 227 2731',
-      source_url: 'https://spmc.doh.gov.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_cardinal_neuro_01',
-      doctor_name: 'Dr. Roberto Cruz, MD, FPNA',
-      specialty: 'neurology',
-      facility_name: 'Cardinal Santos Medical Center',
-      address: '10 Wilson Street, Greenhills West',
-      city: 'San Juan',
-      latitude: 14.5989,
-      longitude: 121.0428,
-      phone: '+63 2 8727 0001',
-      source_url: 'https://cardinalsantos.com.ph',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-    {
-      id: 'doc_tmc_gastro_01',
-      doctor_name: 'Dr. Leah Garcia, MD, FPCP, PSGDE',
-      specialty: 'gastroenterology',
-      facility_name: 'The Medical City',
-      address: 'Ortigas Avenue, Pasig',
-      city: 'Pasig',
-      latitude: 14.5894,
-      longitude: 121.0694,
-      phone: '+63 2 8988 1000',
-      source_url: 'https://themedicalcity.com',
-      verified_at: '2026-10-01T00:00:00.000Z',
-    },
-  ];
-
-  const stmt = db.prepare(`
-    INSERT OR IGNORE INTO doctors (id, doctor_name, specialty, facility_name, address, city, latitude, longitude, phone, source_url, verified_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-  `);
-  for (const doc of seedDocs) {
-    stmt.run(
-      doc.id,
-      doc.doctor_name,
-      doc.specialty,
-      doc.facility_name,
-      doc.address,
-      doc.city,
-      doc.latitude,
-      doc.longitude,
-      doc.phone,
-      doc.source_url,
-      doc.verified_at
-    );
-  }
-}
+if (!db.prepare('SELECT version FROM schema_migrations WHERE version = 1').get()) throw new Error('Database schema is out of sync; explicit setup required.');
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -324,24 +161,32 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    db.prepare('DELETE FROM medication_schedules WHERE medication_id = ?;').run(body.medication_id);
-
-    const now = new Date().toISOString();
-    const daysStr = JSON.stringify(body.days_of_week || [0, 1, 2, 3, 4, 5, 6]);
     const scheduleIds = [];
+    db.exec('BEGIN');
+    try {
+      db.prepare('UPDATE medication_schedules SET enabled = 0 WHERE medication_id = ?;').run(body.medication_id);
 
-    for (const timeLocal of body.times_local) {
-      const scheduleId = generateUUID();
-      db.prepare(`
-        INSERT INTO medication_schedules (id, medication_id, time_local, days_of_week, timezone, starts_on, ends_on, enabled, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
-      `).run(scheduleId, body.medication_id, timeLocal, daysStr, body.timezone || 'Asia/Manila', body.starts_on || null, body.ends_on || null, now, now);
-      scheduleIds.push(scheduleId);
+      const now = new Date().toISOString();
+      const daysStr = JSON.stringify(body.days_of_week || [0, 1, 2, 3, 4, 5, 6]);
+
+      for (const timeLocal of body.times_local) {
+        const scheduleId = generateUUID();
+        db.prepare(`
+          INSERT INTO medication_schedules (id, medication_id, time_local, days_of_week, timezone, starts_on, ends_on, enabled, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
+        `).run(scheduleId, body.medication_id, timeLocal, daysStr, body.timezone || 'Asia/Manila', body.starts_on || null, body.ends_on || null, now, now);
+        scheduleIds.push(scheduleId);
+      }
+
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
     }
 
     return jsonResponse(res, 200, {
       status: 'success',
-      data: { schedule_ids: scheduleIds, notifications_scheduled: scheduleIds.length },
+      data: { schedule_ids: scheduleIds, notifications_scheduled: 0 },
     });
   }
 
@@ -369,7 +214,7 @@ const server = http.createServer(async (req, res) => {
 
     return jsonResponse(res, 200, {
       status: 'success',
-      data: { intake_id: intakeId, status: body.status, recorded_at: recordedAt },
+      data: { intake_id: db.prepare('SELECT id FROM medication_intakes WHERE schedule_id = ? AND scheduled_for = ?').get(body.schedule_id, body.scheduled_for).id, status: body.status, recorded_at: recordedAt },
     });
   }
 

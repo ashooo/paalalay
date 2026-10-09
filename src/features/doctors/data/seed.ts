@@ -1,10 +1,10 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { initializeDatabase } from '@/db';
+import { getDatabase } from '@/db';
 import { PLACEHOLDER_DOCTORS } from './placeholder-doctors';
 
 /**
  * Idempotent seeder for placeholder doctors.
- * 
+ *
  * DESIGN RATIONALE:
  * We chose a dedicated idempotent seed function over a database migration file because:
  * 1. It prevents contaminating the permanent schema migration history (schema_migrations)
@@ -18,7 +18,7 @@ import { PLACEHOLDER_DOCTORS } from './placeholder-doctors';
 export async function seedPlaceholderDoctors(
   db?: SQLiteDatabase
 ): Promise<{ insertedCount: number; totalPlaceholders: number }> {
-  const database = db ?? (await initializeDatabase());
+  const database = db ?? (await getDatabase());
 
   let insertedCount = 0;
 

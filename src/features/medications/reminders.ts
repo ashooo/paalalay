@@ -43,8 +43,8 @@ export async function scheduleMedicationNotification(
   try {
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Medication Reminder',
-        body: `Time to take your medication: ${params.medicationName}`,
+        title: 'PAALALAY',
+        body: 'Time for your reminder',
         data: {
           scheduleId: params.scheduleId,
           timeLocal: params.timeLocal,

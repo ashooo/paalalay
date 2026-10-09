@@ -1,3 +1,4 @@
+import { toolInputSchemas, toolError } from '@/contracts/tools';
 import { getDb, generateUUID } from '@/db/server-db';
 
 // 02. list_medications (Read)
@@ -57,6 +58,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const parsed = toolInputSchemas.create_medication.safeParse(body);
+    if (!parsed.success) return Response.json(toolError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.'), { status: 400 });
+    body = parsed.data;
 
     if (!body || !body.name || !body.strength_text) {
       return Response.json(

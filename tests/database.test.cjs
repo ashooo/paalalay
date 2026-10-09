@@ -15,6 +15,7 @@ test('baseline migration and confirmed BP writes persist across real SQLite conn
   const bind = (args) => args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
   const originalLoad = Module._load;
   Module._load = function (name, ...args) {
+    if (name === 'expo-file-system') return { File: class { get exists() { return fs.existsSync(databasePath); } } };
     if (name === 'expo-sqlite') return {
       openDatabaseAsync: async () => {
         opened++;

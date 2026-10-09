@@ -1,7 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import {
   DoctorModel,
-  SearchSpecialistsInput,
   SearchSpecialistsInputSchema,
   SearchSpecialistsOutputData,
   ServiceEnvelope,
@@ -17,7 +16,7 @@ export class DoctorService {
 
   /**
    * Tool implementation & business service for search_specialists.
-   * 
+   *
    * Strict contract rules:
    * 1. Validates inputs against SearchSpecialistsInputSchema.
    * 2. Returns VALIDATION_ERROR envelope on invalid input (missing specialty, limit > 30, etc.).

@@ -2,7 +2,6 @@ import type * as SQLite from 'expo-sqlite';
 
 export async function createNodeSQLiteAdapter(dbName: string): Promise<SQLite.SQLiteDatabase> {
   const path = (await import('path' as string)) as any;
-  const fs = (await import('fs' as string)) as any;
   const sqliteModule = (await import('node:sqlite' as string)) as any;
 
   const DatabaseSync = sqliteModule.DatabaseSync;
@@ -10,13 +9,6 @@ export async function createNodeSQLiteAdapter(dbName: string): Promise<SQLite.SQ
   const syncDb = new DatabaseSync(dbPath);
 
   syncDb.exec('PRAGMA foreign_keys = ON;');
-
-  // Run initial schema if schema.sql exists
-  const schemaFile = path.join(process.cwd(), 'src/db/schema.sql');
-  if (fs.existsSync(schemaFile)) {
-    const sql = fs.readFileSync(schemaFile, 'utf8');
-    syncDb.exec(sql);
-  }
 
   const adapter: SQLite.SQLiteDatabase = {
     databaseName: dbName,

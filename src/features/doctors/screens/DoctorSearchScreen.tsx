@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { linawTheme } from '../theme.tokens';
 import { doctorService } from '../service/doctor.service';
-import { seedPlaceholderDoctors } from '../data/seed';
+import { fetchDoctors } from '@/services/api-client';
 import type { DoctorModel } from '../contracts.proposal';
 
 const QUICK_SPECIALTIES = [
@@ -36,23 +36,6 @@ export default function DoctorSearchScreen() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Auto-seed fake placeholder data on first mount if not present, then do initial search
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        await seedPlaceholderDoctors();
-        if (isMounted) {
-          executeSearch('Cardiology', '');
-        }
-      } catch (err) {
-        console.error('Failed to initialize doctors seed:', err);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const executeSearch = useCallback(
     async (selectedSpecialty: string, selectedCity: string) => {
@@ -69,11 +52,14 @@ export default function DoctorSearchScreen() {
       setIsLoading(true);
       setHasSearched(true);
 
-      const response = await doctorService.searchDoctorsWithDetails({
+      const input = {
         specialty: trimmedSpecialty,
         city: trimmedCity || undefined,
         limit: 30,
-      });
+      };
+      const response = Platform.OS === 'web'
+        ? await fetchDoctors(input)
+        : await doctorService.searchDoctorsWithDetails(input);
 
       setIsLoading(false);
 
@@ -97,7 +83,7 @@ export default function DoctorSearchScreen() {
   };
 
   const renderDoctorItem = ({ item }: { item: DoctorModel }) => {
-    const isVerified = Boolean(item.verified_at);
+    const isVerified = Boolean(item.verified_at && item.source_url);
     const dateFormatted = item.verified_at
       ? new Date(item.verified_at).toLocaleDateString()
       : null;
@@ -338,12 +324,12 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 16,
   },
-  headerTitle: {
+  headerTitle: { fontFamily: 'Manrope_700Bold',
     fontSize: 24,
     lineHeight: 32,
     fontWeight: '700',
   },
-  trustCue: {
+  trustCue: { fontFamily: 'Manrope_400Regular',
     fontSize: 14,
     lineHeight: 20,
     marginTop: 4,
@@ -351,19 +337,19 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 8,
   },
-  inputLabel: {
+  inputLabel: { fontFamily: 'Manrope_600SemiBold',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 6,
   },
-  input: {
+  input: { fontFamily: 'Manrope_400Regular',
     height: 52,
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 16,
     fontSize: 16,
   },
-  errorText: {
+  errorText: { fontFamily: 'Manrope_400Regular',
     fontSize: 12,
     marginTop: 4,
   },
@@ -380,7 +366,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 8,
   },
-  chipText: {
+  chipText: { fontFamily: 'Manrope_600SemiBold',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -400,7 +386,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  searchButtonText: {
+  searchButtonText: { fontFamily: 'Manrope_600SemiBold',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -411,7 +397,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
   },
-  loadingText: {
+  loadingText: { fontFamily: 'Manrope_400Regular',
     fontSize: 14,
   },
   listContent: {
@@ -434,26 +420,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  specialtyBadgeText: {
+  specialtyBadgeText: { fontFamily: 'Manrope_600SemiBold',
     fontSize: 12,
     fontWeight: '600',
   },
-  doctorName: {
+  doctorName: { fontFamily: 'Manrope_700Bold',
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 4,
   },
-  facilityName: {
+  facilityName: { fontFamily: 'Manrope_600SemiBold',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
-  addressText: {
+  addressText: { fontFamily: 'Manrope_400Regular',
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 8,
   },
-  contactText: {
+  contactText: { fontFamily: 'Manrope_400Regular',
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 8,
@@ -464,7 +450,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 4,
   },
-  provenanceText: {
+  provenanceText: { fontFamily: 'Manrope_400Regular',
     fontSize: 12,
     fontWeight: '500',
   },
@@ -481,15 +467,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  emptyIconText: {
+  emptyIconText: { fontFamily: 'Manrope_400Regular',
     fontSize: 28,
   },
-  emptyTitle: {
+  emptyTitle: { fontFamily: 'Manrope_600SemiBold',
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
   },
-  emptySubtitle: {
+  emptySubtitle: { fontFamily: 'Manrope_400Regular',
     fontSize: 14,
     textAlign: 'center',
   },

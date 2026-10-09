@@ -1,3 +1,4 @@
+import { toolInputSchemas, toolError } from '@/contracts/tools';
 import { getDb, generateUUID } from '@/db/server-db';
 
 // 05. record_medication_intake (Write • confirm)
@@ -15,6 +16,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const parsed = toolInputSchemas.record_medication_intake.safeParse(body);
+    if (!parsed.success) return Response.json(toolError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.'), { status: 400 });
+    body = parsed.data;
 
     if (!body || !body.medication_id || !body.schedule_id || !body.scheduled_for || !body.status) {
       return Response.json(
@@ -51,11 +56,12 @@ export async function POST(request: Request) {
       body.notes || null
     );
 
+    const saved = db.prepare('SELECT id FROM medication_intakes WHERE schedule_id = ? AND scheduled_for = ?').get(body.schedule_id, body.scheduled_for);
     return Response.json(
       {
         status: 'success',
         data: {
-          intake_id: intakeId,
+          intake_id: saved?.id ?? intakeId,
           status: body.status,
           recorded_at: recordedAt,
         },

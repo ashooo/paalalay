@@ -1,38 +1,25 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
-
+import { House, Pill, NotebookPen, MessageCircleHeart, Stethoscope } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-
-  return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
-        />
-      </NativeTabs.Trigger>
-      {__DEV__ && (
-        <NativeTabs.Trigger name="chat">
-          <NativeTabs.Trigger.Label>Chat</NativeTabs.Trigger.Label>
-          <NativeTabs.Trigger.Icon src={require('@/assets/images/tabIcons/home.png')} renderingMode="template" />
-        </NativeTabs.Trigger>
-      )}
-    </NativeTabs>
-  );
+  const colors = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  return <Tabs screenOptions={{
+    headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.text,
+    headerTitleStyle: { fontFamily: 'Manrope_700Bold' },
+    tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.textMuted,
+    tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+    tabBarLabelStyle: { fontFamily: 'Manrope_600SemiBold', fontSize: 12 },
+    sceneStyle: { backgroundColor: colors.background },
+  }}>
+    <Tabs.Screen name="index" options={{ title: 'Paalalay', tabBarLabel: 'Home', tabBarIcon: ({ color }) => <House color={color} size={22} strokeWidth={1.75} /> }} />
+    <Tabs.Screen name="medications" options={{ title: 'Medicines', tabBarIcon: ({ color }) => <Pill color={color} size={22} strokeWidth={1.75} /> }} />
+    <Tabs.Screen name="health" options={{ title: 'Log', tabBarIcon: ({ color }) => <NotebookPen color={color} size={22} strokeWidth={1.75} /> }} />
+    <Tabs.Screen name="assistant" options={{ title: 'Assistant', tabBarIcon: ({ color }) => <MessageCircleHeart color={color} size={22} strokeWidth={1.75} /> }} />
+    <Tabs.Screen name="directory" options={{ title: 'Doctors', tabBarIcon: ({ color }) => <Stethoscope color={color} size={22} strokeWidth={1.75} /> }} />
+    <Tabs.Screen name="insights" options={{ href: null, title: 'Insights' }} />
+    <Tabs.Screen name="scan" options={{ href: null, title: 'Scan prescription' }} />
+    <Tabs.Screen name="chat" options={{ href: null }} />
+  </Tabs>;
 }

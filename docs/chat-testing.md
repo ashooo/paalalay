@@ -1,7 +1,7 @@
 # Development chat and conversation loop
 
 Start `npx expo start --dev-client`, open the existing Android development build,
-and select **Chat**. This route and tab are development-only. Chat history is held
+and select **Assistant**. The legacy `/chat` route redirects to it. Chat history is held
 in memory and disappears when the session unmounts or **New chat** is selected.
 The model file remains separate from the app package.
 
@@ -9,7 +9,8 @@ The model file remains separate from the app package.
 
 ### Explicit SQLite setup and save test
 
-On Android, select **Set up database and connect tools** in Chat. This applies
+Get explicit database approval before using setup or the persistent save test.
+On Android, select **Set up database and connect tools** in Assistant. This applies
 the migration from `main` only on that explicit action, then switches the chat
 to real SQLite handlers. It unloads the model; load it again after setup.
 Startup, Reload, and New chat never apply migrations automatically.
@@ -59,9 +60,11 @@ adb shell run-as com.paalalay.app cp /data/local/tmp/paalalay-model.gguf files/m
 ```
 
 Enter `file:///data/user/0/com.paalalay.app/files/models/Qwen3-0.6B-Q8_0.gguf`
-in **Chat** and select **Load model**. The package ID and path must match the
+in **Assistant** and select **Load model**. The package ID and path must match the
 actual installation. Expo Go and the browser cannot load the native model.
 UI changes such as removing a tab need a Metro reload, not a native rebuild.
+The integrated OCR dependency requires a new native development build once;
+see `development-integration.md` for the branch review and remaining device checks.
 
 1. Send **List medications sample**. The model should choose `list_medications`,
    receive the synthetic empty list, and explain the result without confirmation.

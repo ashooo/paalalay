@@ -1,3 +1,5 @@
+import { toolInputSchemas, toolError } from '../contracts/tools';
+import { measurementInput } from '../features/health/measurement-input';
 import { Platform } from 'react-native';
 import { SearchSpecialistsParams } from '@/features/doctors/types';
 import { HealthSummaryParams } from '@/features/insights/types';
@@ -16,13 +18,13 @@ export async function fetchMedications(activeOnly = true) {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const query = activeOnly
       ? 'SELECT * FROM medications WHERE is_active = 1 ORDER BY created_at DESC;'
       : 'SELECT * FROM medications ORDER BY created_at DESC;';
     const rows = await db.getAllAsync(query);
-    return { status: 'success', data: { medications: rows } };
+    return { status: 'success', data: { medications: (rows as { is_active: number }[]).map(row => ({ ...row, is_active: row.is_active === 1 })) } };
   } catch (err: any) {
     return { status: 'error', error: { code: 'INTERNAL_ERROR', message: err?.message || 'Failed to fetch medications' } };
   }
@@ -37,6 +39,8 @@ export async function createMedication(data: {
   end_date?: string;
   source?: string;
 }) {
+  const parsed = toolInputSchemas.create_medication.safeParse(data);
+  if (!parsed.success) return toolError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.');
   if (isWeb) {
     try {
       const res = await fetch('/api/medications', {
@@ -51,8 +55,8 @@ export async function createMedication(data: {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -96,13 +100,13 @@ export async function fetchTodayMedications(dateStr?: string) {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const targetDate = dateStr || new Date().toISOString().split('T')[0];
     const dayOfWeek = new Date(`${targetDate}T00:00:00`).getDay();
 
     const schedules: any[] = await db.getAllAsync(`
-      SELECT ms.*, m.name as medication_name, m.strength_text, m.dosage_form 
+      SELECT ms.*, m.name as medication_name, m.strength_text, m.dosage_form
       FROM medication_schedules ms
       JOIN medications m ON ms.medication_id = m.id
       WHERE m.is_active = 1 AND ms.enabled = 1
@@ -161,6 +165,8 @@ export async function setMedicationSchedule(data: {
   ends_on?: string;
   timezone?: string;
 }) {
+  const parsed = toolInputSchemas.set_medication_schedule.safeParse(data);
+  if (!parsed.success) return toolError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.');
   if (isWeb) {
     try {
       const res = await fetch('/api/medications/schedule', {
@@ -175,42 +181,45 @@ export async function setMedicationSchedule(data: {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
-    await db.runAsync('DELETE FROM medication_schedules WHERE medication_id = ?;', [data.medication_id]);
-
-    const now = new Date().toISOString();
-    const daysStr = JSON.stringify(data.days_of_week || [0, 1, 2, 3, 4, 5, 6]);
-    const timezone = data.timezone || 'Asia/Manila';
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const scheduleIds: string[] = [];
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('UPDATE medication_schedules SET enabled = 0 WHERE medication_id = ?;', [data.medication_id]);
 
-    for (const timeLocal of data.times_local) {
-      const scheduleId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      });
+      const now = new Date().toISOString();
+      const daysStr = JSON.stringify(data.days_of_week || [0, 1, 2, 3, 4, 5, 6]);
+      const timezone = data.timezone || 'Asia/Manila';
 
-      await db.runAsync(
-        `INSERT INTO medication_schedules (
-          id, medication_id, time_local, days_of_week, timezone, starts_on, ends_on, enabled, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?);`,
-        [
-          scheduleId,
-          data.medication_id,
-          timeLocal,
-          daysStr,
-          timezone,
-          data.starts_on || null,
-          data.ends_on || null,
-          now,
-          now,
-        ]
-      );
-      scheduleIds.push(scheduleId);
-    }
+      for (const timeLocal of data.times_local) {
+        const scheduleId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
 
-    return { status: 'success', data: { schedule_ids: scheduleIds, notifications_scheduled: scheduleIds.length } };
+        await db.runAsync(
+          `INSERT INTO medication_schedules (
+            id, medication_id, time_local, days_of_week, timezone, starts_on, ends_on, enabled, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?);`,
+          [
+            scheduleId,
+            data.medication_id,
+            timeLocal,
+            daysStr,
+            timezone,
+            data.starts_on || null,
+            data.ends_on || null,
+            now,
+            now,
+          ]
+        );
+        scheduleIds.push(scheduleId);
+      }
+
+    });
+
+    return { status: 'success', data: { schedule_ids: scheduleIds, notifications_scheduled: 0 } };
   } catch (err: any) {
     return { status: 'error', error: { code: 'INTERNAL_ERROR', message: err?.message || 'Failed to set schedule' } };
   }
@@ -222,7 +231,10 @@ export async function recordMedicationIntake(data: {
   scheduled_for: string;
   status: 'taken' | 'skipped';
   notes?: string;
+  recorded_at?: string;
 }) {
+  const parsed = toolInputSchemas.record_medication_intake.safeParse(data);
+  if (!parsed.success) return toolError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.');
   if (isWeb) {
     try {
       const res = await fetch('/api/medications/intake', {
@@ -237,14 +249,14 @@ export async function recordMedicationIntake(data: {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const intakeId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
-    const now = new Date().toISOString();
+    const now = data.recorded_at ?? new Date().toISOString();
 
     await db.runAsync(
       `INSERT INTO medication_intakes (
@@ -265,7 +277,8 @@ export async function recordMedicationIntake(data: {
       ]
     );
 
-    return { status: 'success', data: { intake_id: intakeId, status: data.status, recorded_at: now } };
+    const saved = await db.getFirstAsync<{ id: string }>('SELECT id FROM medication_intakes WHERE schedule_id = ? AND scheduled_for = ?', [data.schedule_id, data.scheduled_for]);
+    return { status: 'success', data: { intake_id: saved?.id ?? intakeId, status: data.status, recorded_at: now } };
   } catch (err: any) {
     return { status: 'error', error: { code: 'INTERNAL_ERROR', message: err?.message || 'Failed to record intake' } };
   }
@@ -287,13 +300,15 @@ export async function logHealthMeasurement(data: {
   notes?: string;
   recorded_at?: string;
 }) {
+  const parsed = measurementInput(data);
+  if (!parsed.success) return toolError('VALIDATION_ERROR', parsed.message);
   if (isWeb) {
     try {
       const endpoint = `/api/health-logs/${data.log_type.replace('_', '-')}`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(parsed.args),
       });
       return await res.json();
     } catch (err: any) {
@@ -302,8 +317,8 @@ export async function logHealthMeasurement(data: {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const logId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -327,7 +342,7 @@ export async function logHealthMeasurement(data: {
         data.glucose_value || null,
         data.glucose_unit || null,
         data.glucose_context || null,
-        data.temperature_c || null,
+        data.temperature_c ?? null,
         data.weight_kg || null,
         data.symptom_name || null,
         data.symptom_severity || null,
@@ -366,8 +381,8 @@ export async function fetchHealthHistory(params?: {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const conditions: string[] = [];
     const queryParams: any[] = [];
 
@@ -432,8 +447,8 @@ export async function getHealthSummary(params: HealthSummaryParams) {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const { InsightsService } = await import('@/features/insights/insights.service');
     return await InsightsService.getHealthSummary(db, params);
   } catch (err: any) {
@@ -455,8 +470,8 @@ export async function searchSpecialists(params: SearchSpecialistsParams) {
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const { DoctorsService } = await import('@/features/doctors/doctors.service');
     return await DoctorsService.searchSpecialists(db, params);
   } catch (err: any) {
@@ -480,8 +495,8 @@ export async function fetchDoctors(params?: { specialty?: string; city?: string;
   }
 
   try {
-    const { initializeDatabase } = await import('@/db');
-    const db = await initializeDatabase();
+    const { getDatabase } = await import('@/db');
+    const db = await getDatabase();
     const { DoctorsService } = await import('@/features/doctors/doctors.service');
     return await DoctorsService.listAllDoctors(db, params?.limit || 30);
   } catch (err: any) {

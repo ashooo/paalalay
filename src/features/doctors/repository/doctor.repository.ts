@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { initializeDatabase } from '@/db';
+import { getDatabase } from '@/db';
 import type {
   DoctorModel,
   SearchSpecialistsInput,
@@ -12,13 +12,13 @@ export class DoctorRepository {
    * never opening an ad-hoc database file.
    */
   private async getDb(db?: SQLiteDatabase): Promise<SQLiteDatabase> {
-    return db ?? (await initializeDatabase());
+    return db ?? (await getDatabase());
   }
 
   /**
    * Search doctors returning the strict tool contract result item shape:
    * { id, specialty, doctor_name?, facility_name, address, city }
-   * 
+   *
    * Strict requirements:
    * - Parameterized SQL only.
    * - Case-insensitive match on specialty.

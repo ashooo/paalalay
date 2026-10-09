@@ -1,6 +1,2 @@
-import ChatScreen from '@/features/chat/chat-screen';
-
-export default function ChatRoute() {
-  if (!__DEV__) return null;
-  return <ChatScreen />;
-}
+import { Redirect } from 'expo-router';
+export default function LegacyChatRoute() { return <Redirect href="/assistant" />; }

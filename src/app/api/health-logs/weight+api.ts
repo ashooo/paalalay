@@ -1,3 +1,4 @@
+import { toolInputSchemas, toolError } from '@/contracts/tools';
 import { getDb, generateUUID } from '@/db/server-db';
 
 // 10. log_weight (Write • confirm)
@@ -15,6 +16,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const parsed = toolInputSchemas.log_weight.safeParse(body);
+    if (!parsed.success) return Response.json(toolError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.'), { status: 400 });
+    body = parsed.data;
 
     if (body.value_kg == null) {
       return Response.json(

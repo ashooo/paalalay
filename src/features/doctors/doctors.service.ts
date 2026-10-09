@@ -24,8 +24,6 @@ export class DoctorsService {
     }
 
     try {
-      // Ensure seed data is populated
-      await DoctorsRepository.seedCuratedDoctors(db);
 
       const cleanSpecialty = params.specialty.trim();
       const cleanCity = params.city ? params.city.trim() : undefined;
@@ -59,7 +57,6 @@ export class DoctorsService {
    */
   static async listAllDoctors(db: SQLiteDatabase, limit: number = 30) {
     try {
-      await DoctorsRepository.seedCuratedDoctors(db);
       const results = await DoctorsRepository.listDoctors(db, limit);
       return {
         status: 'success' as const,
