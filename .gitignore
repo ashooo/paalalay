@@ -46,3 +46,6 @@ example
 /assets/models/*
 !/assets/models/README.md
 *.gguf
+
+# Local database
+paalalay.db
