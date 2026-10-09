@@ -24,7 +24,7 @@ export async function initializeDatabase(db?: SQLite.SQLiteDatabase): Promise<SQ
   const appliedRows = await database.getAllAsync<{ version: number }>(
     'SELECT version FROM schema_migrations ORDER BY version ASC;'
   );
-  const appliedVersions = new Set(appliedRows.map((r) => r.version));
+  const appliedVersions = new Set(appliedRows.map((r: { version: number }) => r.version));
 
   // Sort and apply pending migrations
   const sortedMigrations = [...migrations].sort((a, b) => a.version - b.version);
