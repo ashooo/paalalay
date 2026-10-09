@@ -160,7 +160,7 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
         </TouchableOpacity>
 
-        {/* Dev 3: Doctor Directory */}
+        {/* Dev 3: Find nearby care */}
         <TouchableOpacity
           style={[styles.featureCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => router.push('/directory')}
@@ -170,9 +170,9 @@ export default function HomeScreen() {
             <Ionicons name="business-outline" size={24} color={theme.secondary} />
           </View>
           <View style={styles.cardContent}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Doctor Directory</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Find nearby care</Text>
             <Text style={[styles.cardSubtitle, { color: theme.textMuted }]}>
-              Search local directory records & sources
+              Find hospitals and clinics in Maps
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />

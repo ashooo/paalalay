@@ -1,5 +1,10 @@
 # Development branch integration — 10 October 2026
 
+Follow-up: the user chose location-based hospital/clinic search instead of
+maintaining verified doctor records. The Care tab now opens Google Maps with an
+explicit location-sharing action or a manually entered city. See `nearby-care.md`.
+The branch review below records the original contributions before that change.
+
 The three contributor branches are integrated into `development`. This is a
 working integration foundation, not a claim that every assigned task is complete.
 `main` was not changed by this integration.

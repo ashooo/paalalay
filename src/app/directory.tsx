@@ -1,1 +1,1 @@
-export { default } from '@/features/doctors/screens/DoctorSearchScreen';
+export { default } from '@/features/care/NearbyCareScreen';

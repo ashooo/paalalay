@@ -42,6 +42,15 @@
       ],
       "expo-sqlite",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Use your location to find nearby hospitals and clinics in Google Maps.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
         "rn-mlkit-ocr",
         {
           "ocrModels": ["latin"],
