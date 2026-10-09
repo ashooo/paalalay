@@ -1,4 +1,4 @@
-import { getDb, generateUUID } from '../db';
+import { getDb, generateUUID } from '@/db/server-db';
 
 // 09. log_temperature (Write • confirm)
 export async function POST(request: Request) {

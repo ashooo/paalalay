@@ -1,4 +1,4 @@
-import { getDb, generateUUID } from '../db';
+import { getDb, generateUUID } from '@/db/server-db';
 
 // 08. log_blood_sugar (Write • confirm)
 export async function POST(request: Request) {

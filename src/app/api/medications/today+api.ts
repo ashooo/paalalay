@@ -1,4 +1,4 @@
-import { getDb } from '../db';
+import { getDb } from '@/db/server-db';
 
 // 03. get_today_medications (Read)
 export async function GET(request: Request) {

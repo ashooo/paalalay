@@ -1,4 +1,4 @@
-import { getDb, generateUUID } from './db';
+import { getDb, generateUUID } from '@/db/server-db';
 
 // 02. list_medications (Read)
 export async function GET(request: Request) {

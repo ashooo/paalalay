@@ -1,4 +1,4 @@
-import { getDb, generateUUID } from '../db';
+import { getDb, generateUUID } from '@/db/server-db';
 
 // 04. set_medication_schedule (Write • confirm)
 export async function POST(request: Request) {
