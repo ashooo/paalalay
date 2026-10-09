@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { CURATED_SPECIALISTS } from '@/features/doctors/seed-data';
 
 export interface Migration {
   version: number;
@@ -122,6 +123,33 @@ export const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_doctors_specialty_city ON doctors(specialty, city);
         CREATE INDEX IF NOT EXISTS idx_chat_messages_session_created ON chat_messages(session_id, created_at);
       `);
+    },
+  },
+  {
+    version: 2,
+    name: '002_seed_curated_doctors',
+    up: async (db: SQLiteDatabase) => {
+      for (const doc of CURATED_SPECIALISTS) {
+        await db.runAsync(
+          `INSERT OR IGNORE INTO doctors (
+            id, doctor_name, specialty, facility_name, address, city,
+            latitude, longitude, phone, source_url, verified_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          [
+            doc.id,
+            doc.doctor_name || null,
+            doc.specialty,
+            doc.facility_name,
+            doc.address,
+            doc.city,
+            doc.latitude || null,
+            doc.longitude || null,
+            doc.phone || null,
+            doc.source_url || null,
+            doc.verified_at || null,
+          ]
+        );
+      }
     },
   },
 ];

@@ -1,13 +1,26 @@
-import * as SQLite from 'expo-sqlite';
+import type * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 import { migrations } from './migrations';
 
 export const DATABASE_NAME = 'paalalay.db';
+
+const isNodeServer = typeof process !== 'undefined' && process.release?.name === 'node' && Platform.OS !== 'ios' && Platform.OS !== 'android';
 
 /**
  * Initializes the SQLite database and runs all pending migrations in order.
  */
 export async function initializeDatabase(db?: SQLite.SQLiteDatabase): Promise<SQLite.SQLiteDatabase> {
-  const database = db ?? (await SQLite.openDatabaseAsync(DATABASE_NAME));
+  let database: SQLite.SQLiteDatabase;
+
+  if (db) {
+    database = db;
+  } else if (isNodeServer) {
+    const { createNodeSQLiteAdapter } = await import('./node-adapter');
+    database = await createNodeSQLiteAdapter(DATABASE_NAME);
+  } else {
+    const SQLiteModule = await import('expo-sqlite');
+    database = await SQLiteModule.openDatabaseAsync(DATABASE_NAME);
+  }
 
   await database.execAsync('PRAGMA foreign_keys = ON;');
 

@@ -1,0 +1,66 @@
+import { getDb, generateUUID } from '@/db/server-db';
+
+// 10. log_weight (Write • confirm)
+export async function POST(request: Request) {
+  try {
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json(
+        {
+          status: 'error',
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON request body' },
+        },
+        { status: 400 }
+      );
+    }
+
+    if (body.value_kg == null) {
+      return Response.json(
+        {
+          status: 'error',
+          error: { code: 'VALIDATION_ERROR', message: 'value_kg is required' },
+        },
+        { status: 400 }
+      );
+    }
+
+    const db = await getDb();
+    const logId = generateUUID();
+    const now = new Date().toISOString();
+    const recordedAt = body.recorded_at || now;
+
+    db.prepare(`
+      INSERT INTO health_logs (
+        id, log_type, weight_kg, notes, recorded_at, created_at
+      ) VALUES (?, 'weight', ?, ?, ?, ?);
+    `).run(
+      logId,
+      body.value_kg,
+      body.notes || null,
+      recordedAt,
+      now
+    );
+
+    return Response.json(
+      {
+        status: 'success',
+        data: {
+          log_id: logId,
+          log_type: 'weight',
+          recorded_at: recordedAt,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    return Response.json(
+      {
+        status: 'error',
+        error: { code: 'INTERNAL_ERROR', message: error?.message || 'Failed to log weight' },
+      },
+      { status: 500 }
+    );
+  }
+}
