@@ -139,3 +139,39 @@ export function buildMedicationHandoff(rawText: string): OcrHandoffPayload {
     parsedHints: hints,
   };
 }
+
+/**
+ * Safely parses Expo Router route params into an OcrHandoffPayload.
+ * Used by Dev 2 in the medication screen to consume incoming OCR handoff data.
+ */
+export function parseOcrHandoffParams(
+  params: Record<string, string | string[] | undefined>
+): OcrHandoffPayload | null {
+  if (params.source !== 'ocr_verified' || !params.ocr_raw_text) {
+    return null;
+  }
+
+  const rawText = Array.isArray(params.ocr_raw_text)
+    ? params.ocr_raw_text[0]
+    : params.ocr_raw_text;
+  const suggestedName = Array.isArray(params.ocr_name)
+    ? params.ocr_name[0]
+    : params.ocr_name;
+  const suggestedStrength = Array.isArray(params.ocr_strength)
+    ? params.ocr_strength[0]
+    : params.ocr_strength;
+  const suggestedInstructions = Array.isArray(params.ocr_instructions)
+    ? params.ocr_instructions[0]
+    : params.ocr_instructions;
+
+  return {
+    raw_text: rawText,
+    requires_manual_review: true,
+    source: 'ocr_verified',
+    parsedHints: {
+      suggestedName: suggestedName || undefined,
+      suggestedStrength: suggestedStrength || undefined,
+      suggestedInstructions: suggestedInstructions || undefined,
+    },
+  };
+}

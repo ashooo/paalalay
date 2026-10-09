@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,8 +11,10 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 
 import { Colors } from '@/constants/theme';
+import { getDatabase } from '@/db';
 
 export default function MedicationsScreen() {
   const colorScheme = useColorScheme();
@@ -27,9 +30,51 @@ export default function MedicationsScreen() {
   }>();
 
   const isFromOcr = params.source === 'ocr_verified';
-  const [medName, setMedName] = useState(params.ocr_name ?? '');
-  const [strength, setStrength] = useState(params.ocr_strength ?? '');
-  const [instructions, setInstructions] = useState(params.ocr_instructions ?? '');
+  const [userEditedName, setUserEditedName] = useState<string | null>(null);
+  const [userEditedStrength, setUserEditedStrength] = useState<string | null>(null);
+  const [userEditedInstructions, setUserEditedInstructions] = useState<string | null>(null);
+
+  const medName = userEditedName ?? params.ocr_name ?? '';
+  const strength = userEditedStrength ?? params.ocr_strength ?? '';
+  const instructions = userEditedInstructions ?? params.ocr_instructions ?? '';
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedMedId, setSavedMedId] = useState<string | null>(null);
+
+  const handleSaveMedication = async () => {
+    if (!medName.trim() || !strength.trim()) {
+      Alert.alert('Validation Error', 'Medication name and strength are required.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const db = await getDatabase();
+      const id = Crypto.randomUUID();
+      const now = new Date().toISOString();
+      const source = isFromOcr ? 'ocr_verified' : 'manual';
+
+      await db.runAsync(
+        `INSERT INTO medications (id, name, strength_text, instructions, source, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 1, ?, ?);`,
+        [id, medName.trim(), strength.trim(), instructions.trim() || null, source, now, now]
+      );
+
+      setSavedMedId(id);
+      Alert.alert(
+        'Medication Saved',
+        `Successfully saved "${medName.trim()}" (Source: ${source}). ID: ${id.slice(0, 8)}...`
+      );
+      setUserEditedName('');
+      setUserEditedStrength('');
+      setUserEditedInstructions('');
+    } catch (err) {
+      console.error('[Save Medication Error]:', err);
+      Alert.alert('Error', 'Failed to save medication to database.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -74,7 +119,7 @@ export default function MedicationsScreen() {
           placeholder="e.g. Amoxicillin, Losartan"
           placeholderTextColor={theme.textMuted}
           value={medName}
-          onChangeText={setMedName}
+          onChangeText={setUserEditedName}
         />
 
         <Text style={[styles.label, { color: theme.textMuted }]}>Strength / Dosage *</Text>
@@ -83,7 +128,7 @@ export default function MedicationsScreen() {
           placeholder="e.g. 500 mg, 10 mg"
           placeholderTextColor={theme.textMuted}
           value={strength}
-          onChangeText={setStrength}
+          onChangeText={setUserEditedStrength}
         />
 
         <Text style={[styles.label, { color: theme.textMuted }]}>Instructions</Text>
@@ -92,16 +137,27 @@ export default function MedicationsScreen() {
           placeholder="e.g. Take 1 tablet once daily with food"
           placeholderTextColor={theme.textMuted}
           value={instructions}
-          onChangeText={setInstructions}
+          onChangeText={setUserEditedInstructions}
         />
 
         <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: theme.primary }]}
+          style={[
+            styles.saveButton,
+            { backgroundColor: isSaving ? theme.border : theme.primary },
+          ]}
+          onPress={handleSaveMedication}
+          disabled={isSaving}
           activeOpacity={0.8}
         >
-          <Ionicons name="checkmark-circle-outline" size={20} color={theme.onPrimary} />
+          <Ionicons
+            name={savedMedId ? 'checkmark-circle' : 'checkmark-circle-outline'}
+            size={20}
+            color={theme.onPrimary}
+          />
           <Text style={[styles.saveButtonText, { color: theme.onPrimary }]}>
-            Save Medication (Dev 2 Tool: create_medication)
+            {isSaving
+              ? 'Saving to SQLite...'
+              : 'Save Medication (Dev 2 Tool: create_medication)'}
           </Text>
         </TouchableOpacity>
       </View>

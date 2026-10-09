@@ -128,15 +128,16 @@ export function ScanPrescriptionScreen({ onHandoffToMedication }: ScanPrescripti
     if (onHandoffToMedication) {
       onHandoffToMedication(handoffPayload);
     } else {
-      // Coordinate with Dev 2's medication route
+      // Coordinate with Dev 2's medication creation screen route
       router.push({
-        pathname: '/medications/new' as any,
+        pathname: '/medications',
         params: {
           ocr_raw_text: handoffPayload.raw_text,
           ocr_name: hints.suggestedName ?? '',
           ocr_strength: hints.suggestedStrength ?? '',
           ocr_instructions: hints.suggestedInstructions ?? '',
           source: 'ocr_verified',
+          requires_manual_review: 'true',
         },
       });
     }
