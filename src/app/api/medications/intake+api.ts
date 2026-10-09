@@ -35,6 +35,10 @@ export async function POST(request: Request) {
     }
 
     const db = await getDb();
+    const schedule = db.prepare('SELECT medication_id FROM medication_schedules WHERE id = ?').get(body.schedule_id);
+    if (!schedule || schedule.medication_id !== body.medication_id) return Response.json(toolError('VALIDATION_ERROR', 'The reminder does not belong to this medicine.'), { status: 400 });
+    const existing = db.prepare('SELECT scheduled_for FROM medication_intakes WHERE schedule_id = ? AND julianday(scheduled_for) = julianday(?) ORDER BY recorded_at DESC LIMIT 1').get(body.schedule_id, body.scheduled_for);
+    body.scheduled_for = existing?.scheduled_for ?? new Date(body.scheduled_for).toISOString();
     const intakeId = generateUUID();
     const recordedAt = body.recorded_at || new Date().toISOString();
 

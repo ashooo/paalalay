@@ -42,6 +42,10 @@ test('merged API writes validate inputs, retain IDs/history, and reads never see
     const taken = await (await intake.POST(post(occurrence))).json();
     const skipped = await (await intake.POST(post({ ...occurrence, status: 'skipped' }))).json();
     assert.equal(skipped.data.intake_id, taken.data.intake_id);
+    const reformatted = await (await intake.POST(post({ ...occurrence, scheduled_for: '2026-10-10T01:00:00.000Z' }))).json();
+    assert.equal(reformatted.data.intake_id, taken.data.intake_id);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM medication_intakes').get().count, 1);
+    assert.equal((await intake.POST(post({ ...occurrence, medication_id: '00000000-0000-4000-8000-000000000099' }))).status, 400);
     assert.equal(db.prepare('SELECT id FROM medication_intakes').get().id, skipped.data.intake_id);
     const replacement = await (await schedule.POST(post({ medication_id: created.data.medication_id, times_local: ['10:00'] }))).json();
     assert.equal(replacement.status, 'success');
@@ -54,6 +58,16 @@ test('merged API writes validate inputs, retain IDs/history, and reads never see
     assert.equal(db.prepare('SELECT enabled FROM medication_schedules WHERE id = ?').get(replacement.data.schedule_ids[0]).enabled, 1);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM medication_schedules').get().count, 2);
     db.exec('DROP TRIGGER synthetic_schedule_failure');
+    const manager = require('../src/app/api/medications/manage+api.ts');
+    assert.equal((await manager.PUT(post(null))).status, 400);
+    const edit = { id: created.data.medication_id, name: 'Synthetic edited medicine', strength_text: '10 mg', instructions: 'Synthetic pharmacist instructions', is_active: false };
+    assert.equal((await manager.PUT(post(edit))).status, 200);
+    const management = await (await manager.GET()).json();
+    assert.equal(management.data.medicines[0].is_active, 0);
+    assert.equal(management.data.medicines[0].instructions, edit.instructions);
+    assert.equal(management.data.intakes.length, 1);
+    assert.equal(management.data.schedules.length, 1);
+    assert.equal((await manager.PUT(post({ ...edit, is_active: true }))).status, 200);
     const samples = [
       ['blood-pressure', { systolic: 120, diastolic: 80 }],
       ['blood-sugar', { value: 90, unit: 'mg_dL' }],

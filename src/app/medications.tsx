@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/constants/theme';
 import { createMedication } from '@/services/api-client';
+import MedicineManagement from '@/features/medications/MedicineManagement';
 
 export default function MedicationsScreen() {
   const colorScheme = useColorScheme();
@@ -39,13 +40,17 @@ export default function MedicationsScreen() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedMedId, setSavedMedId] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const saveLock = useRef(false);
 
   const handleSaveMedication = async () => {
+    if (saveLock.current) return;
     if (!medName.trim() || !strength.trim()) {
       Alert.alert('Validation Error', 'Medication name and strength are required.');
       return;
     }
 
+    saveLock.current = true;
     setIsSaving(true);
     try {
       const source = isFromOcr ? 'ocr_verified' : 'manual';
@@ -54,6 +59,7 @@ export default function MedicationsScreen() {
       const id = result.data.medication_id;
 
       setSavedMedId(id);
+      setRevision(value => value + 1);
       Alert.alert(
         'Medication Saved',
         `Successfully saved "${medName.trim()}" (Source: ${source}). ID: ${id.slice(0, 8)}...`
@@ -65,6 +71,7 @@ export default function MedicationsScreen() {
       console.error('[Save Medication Error]:', err);
       Alert.alert('Error', 'Failed to save medication to database.');
     } finally {
+      saveLock.current = false;
       setIsSaving(false);
     }
   };
@@ -88,10 +95,10 @@ export default function MedicationsScreen() {
           <Ionicons name="document-text" size={20} color={theme.primary} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.ocrBannerTitle, { color: theme.text }]}>
-              Prescription Data Received from Dev 4 OCR
+              Scanned prescription text
             </Text>
             <Text style={[styles.ocrBannerText, { color: theme.textMuted }]}>
-              Pre-filled from verified document. Review and confirm to save.
+              Pre-filled from OCR. Check every field against your prescription before saving.
             </Text>
           </View>
         </View>
@@ -110,7 +117,7 @@ export default function MedicationsScreen() {
           onChangeText={setUserEditedName}
         />
 
-        <Text style={[styles.label, { color: theme.textMuted }]}>Strength / Dosage *</Text>
+        <Text style={[styles.label, { color: theme.textMuted }]}>Strength *</Text>
         <TextInput
           style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
           placeholder="e.g. 500 mg, 10 mg"
@@ -150,7 +157,7 @@ export default function MedicationsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Frozen Tool Contracts Checklist */}
+      <MedicineManagement revision={revision} />
 
     </ScrollView>
   );

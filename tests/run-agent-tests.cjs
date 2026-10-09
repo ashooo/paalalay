@@ -4,3 +4,4 @@ require('./local-model.test.cjs');
 require('./database.test.cjs');
 require('./branch-integration.test.cjs');
 require('./care-search.test.cjs');
+require('./medication-management.test.cjs');

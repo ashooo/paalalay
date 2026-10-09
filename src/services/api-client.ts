@@ -251,6 +251,10 @@ export async function recordMedicationIntake(data: {
   try {
     const { getDatabase } = await import('@/db');
     const db = await getDatabase();
+    const schedule = await db.getFirstAsync<{ medication_id: string }>('SELECT medication_id FROM medication_schedules WHERE id = ?', [data.schedule_id]);
+    if (!schedule || schedule.medication_id !== data.medication_id) return toolError('VALIDATION_ERROR', 'The reminder does not belong to this medicine.');
+    const existing = await db.getFirstAsync<{ scheduled_for: string }>('SELECT scheduled_for FROM medication_intakes WHERE schedule_id = ? AND julianday(scheduled_for) = julianday(?) ORDER BY recorded_at DESC LIMIT 1', [data.schedule_id, data.scheduled_for]);
+    const scheduledFor = existing?.scheduled_for ?? new Date(data.scheduled_for).toISOString();
     const intakeId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -270,14 +274,14 @@ export async function recordMedicationIntake(data: {
         intakeId,
         data.medication_id,
         data.schedule_id,
-        data.scheduled_for,
+        scheduledFor,
         data.status,
         now,
         data.notes || null,
       ]
     );
 
-    const saved = await db.getFirstAsync<{ id: string }>('SELECT id FROM medication_intakes WHERE schedule_id = ? AND scheduled_for = ?', [data.schedule_id, data.scheduled_for]);
+    const saved = await db.getFirstAsync<{ id: string }>('SELECT id FROM medication_intakes WHERE schedule_id = ? AND scheduled_for = ?', [data.schedule_id, scheduledFor]);
     return { status: 'success', data: { intake_id: saved?.id ?? intakeId, status: data.status, recorded_at: now } };
   } catch (err: any) {
     return { status: 'error', error: { code: 'INTERNAL_ERROR', message: err?.message || 'Failed to record intake' } };
