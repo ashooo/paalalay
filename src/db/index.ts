@@ -9,6 +9,58 @@ let cachedDbInstance: SQLite.SQLiteDatabase | null = null;
 let initializationPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
+ * Runs all pending migrations sequentially.
+ * Verifies table existence in sqlite_master to guarantee baseline tables exist,
+ * even if schema_migrations was partially populated in a previous run.
+ */
+async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
+  await database.execAsync('PRAGMA foreign_keys = ON;');
+
+  // Ensure migrations tracking table exists (Table 8 - Dev 4)
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    );
+  `);
+
+  // Retrieve applied migration versions
+  const appliedRows = await database.getAllAsync<{ version: number }>(
+    'SELECT version FROM schema_migrations ORDER BY version ASC;'
+  );
+  const appliedVersions = new Set(appliedRows.map((r: { version: number }) => r.version));
+
+  // Sanity check: verify if baseline tables actually exist in sqlite_master
+  // If baseline tables were not created (e.g. from a dirty state or interrupted run),
+  // force migration 1 to re-run and execute CREATE TABLE IF NOT EXISTS.
+  const baselineTable = await database.getFirstAsync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='doctors';"
+  );
+  if (!baselineTable) {
+    appliedVersions.delete(1);
+  }
+
+  // Sort migrations strictly in ascending version order
+  const sortedMigrations = [...migrations].sort((a, b) => a.version - b.version);
+
+  // Apply pending migrations inside isolated transactions
+  for (const migration of sortedMigrations) {
+    if (!appliedVersions.has(migration.version)) {
+      await database.withTransactionAsync(async () => {
+        await migration.up(database);
+        const appliedAt = new Date().toISOString();
+        await database.runAsync(
+          'INSERT OR REPLACE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?);',
+          [migration.version, migration.name, appliedAt]
+        );
+      });
+      console.log(`[SQLite Migration] Applied version ${migration.version}: ${migration.name}`);
+    }
+  }
+}
+
+/**
  * Primary SQLite connection accessor for all feature repositories (Dev 1, Dev 2, Dev 3, Dev 4).
  * Opens the existing database. Schema setup is an explicit operation only.
  */
@@ -29,6 +81,7 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
         if (!migrations.every((migration) => versions.some((row) => row.version === migration.version))) {
           throw new Error('Database setup is required. Use the explicit setup control in Assistant.');
         }
+        cachedDbInstance = database;
         return database;
       } catch (error) {
         await database.closeAsync();
@@ -38,8 +91,9 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
   }
 
   try {
-    cachedDbInstance = await initializationPromise;
-    return cachedDbInstance;
+    const db = await initializationPromise;
+    cachedDbInstance = db;
+    return db;
   } finally {
     initializationPromise = null;
   }
@@ -48,49 +102,40 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 /**
  * Initializes the SQLite database, verifies foreign key support,
  * and runs all pending migrations in ascending version order.
+ * Memoizes execution to guarantee concurrent callers share a single migration run.
  */
 export async function initializeDatabase(
   db?: SQLite.SQLiteDatabase
 ): Promise<SQLite.SQLiteDatabase> {
-  const database = db ?? (await SQLite.openDatabaseAsync(DATABASE_NAME));
-
-  // Enforce foreign key constraints globally
-  await database.execAsync('PRAGMA foreign_keys = ON;');
-
-  // Ensure migrations tracking table exists (Table 8 - Dev 4)
-  await database.execAsync(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
-      applied_at TEXT NOT NULL
-    );
-  `);
-
-  // Retrieve applied migration versions
-  const appliedRows = await database.getAllAsync<{ version: number }>(
-    'SELECT version FROM schema_migrations ORDER BY version ASC;'
-  );
-  const appliedVersions = new Set(appliedRows.map((r: { version: number }) => r.version));
-
-  // Sort migrations strictly in ascending version order
-  const sortedMigrations = [...migrations].sort((a, b) => a.version - b.version);
-
-  // Apply pending migrations inside isolated transactions
-  for (const migration of sortedMigrations) {
-    if (!appliedVersions.has(migration.version)) {
-      await database.withTransactionAsync(async () => {
-        await migration.up(database);
-        const appliedAt = new Date().toISOString();
-        await database.runAsync(
-          'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?);',
-          [migration.version, migration.name, appliedAt]
-        );
-      });
-      console.log(`[SQLite Migration] Applied version ${migration.version}: ${migration.name}`);
-    }
+  if (db) {
+    await runMigrations(db);
+    cachedDbInstance = db;
+    return db;
   }
 
-  return database;
+  if (cachedDbInstance) {
+    return cachedDbInstance;
+  }
+
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  initializationPromise = (async () => {
+    try {
+      const database = await SQLite.openDatabaseAsync(DATABASE_NAME);
+      await runMigrations(database);
+      cachedDbInstance = database;
+      return database;
+    } catch (error) {
+      cachedDbInstance = null;
+      throw error;
+    } finally {
+      initializationPromise = null;
+    }
+  })();
+
+  return initializationPromise;
 }
 
 /**

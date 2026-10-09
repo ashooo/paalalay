@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   useColorScheme,
+  Linking,
 } from 'react-native';
 import { linawTheme } from '../theme.tokens';
 import { doctorService } from '../service/doctor.service';
@@ -125,13 +126,43 @@ export default function DoctorSearchScreen() {
           {item.address}, {item.city}
         </Text>
 
-        {item.phone ? (
-          <Text style={[styles.contactText, { color: colors.secondary }]}>
-            Contact: {item.phone}
-          </Text>
+        {item.latitude != null && item.longitude != null ? (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              const url = Platform.select({
+                ios: `maps:0,0?q=${item.latitude},${item.longitude}`,
+                android: `geo:0,0?q=${item.latitude},${item.longitude}(${encodeURIComponent(item.facility_name)})`,
+                default: `https://www.google.com/maps/search/?api=1&query=${item.latitude},${item.longitude}`,
+              });
+              if (url) Linking.openURL(url).catch(() => {});
+            }}
+            style={styles.coordinatesRow}
+          >
+            <Text style={[styles.coordinatesText, { color: colors.textMuted }]}>
+              📍 {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)} • View location
+            </Text>
+          </TouchableOpacity>
         ) : null}
 
-        <View
+        {item.phone ? (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL(`tel:${item.phone}`).catch(() => {})}
+          >
+            <Text style={[styles.contactText, { color: colors.secondary }]}>
+              📞 Contact: {item.phone} (Tap to call)
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          activeOpacity={item.source_url ? 0.7 : 1}
+          onPress={() => {
+            if (item.source_url) {
+              Linking.openURL(item.source_url).catch(() => {});
+            }
+          }}
           style={[
             styles.provenanceContainer,
             { backgroundColor: colors.surfaceVariant },
@@ -144,10 +175,10 @@ export default function DoctorSearchScreen() {
             ]}
           >
             {isVerified
-              ? `Verified on ${dateFormatted} • ${item.source_url ?? 'Official Directory'}`
+              ? `✓ Verified on ${dateFormatted} • ${item.source_url ? 'View directory source ↗' : 'Official Directory'}`
               : 'Unverified placeholder'}
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -443,6 +474,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 8,
+  },
+  coordinatesRow: {
+    marginBottom: 8,
+  },
+  coordinatesText: {
+    fontSize: 13,
   },
   provenanceContainer: {
     borderRadius: 8,
