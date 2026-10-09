@@ -41,3 +41,8 @@ example
 # generated native folders
 /ios
 /android
+
+# Local model files: keep binaries out of Git and EAS build uploads.
+/assets/models/*
+!/assets/models/README.md
+*.gguf
