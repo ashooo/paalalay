@@ -33,3 +33,15 @@ export interface OcrHandoffPayload {
     suggestedInstructions?: string;
   };
 }
+
+/**
+ * Route parameter contract passed via Expo Router to Dev 2's medication creation screen.
+ */
+export interface OcrHandoffRouteParams {
+  ocr_raw_text: string;
+  ocr_name?: string;
+  ocr_strength?: string;
+  ocr_instructions?: string;
+  source: 'ocr_verified';
+  requires_manual_review: 'true';
+}
