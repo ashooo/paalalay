@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Plus, MessageCircleHeart } from 'lucide-react-native';
+import { X, Plus, MessageCircleHeart } from '@/components/icons';
 import { Colors } from '@/constants/theme';
 import { useReducedMotion } from './activity-feedback';
 

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect, router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { ArrowRight, HeartPulse, ScanLine, ShieldCheck, MessageCircleHeart, Pill, ChartNoAxesCombined, MapPin } from 'lucide-react-native';
+import { ArrowRight, HeartPulse, ScanLine, ShieldCheck, MessageCircleHeart, Pill, ChartNoAxesCombined, MapPin } from '@/components/icons';
 import { Colors } from '@/constants/theme';
 import { readingLabel } from '../health/HealthHistory';
 import { todayOccurrences } from '../medications/occurrences';

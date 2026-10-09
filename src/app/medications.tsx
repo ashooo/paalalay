@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Plus, ScanLine } from 'lucide-react-native';
+import { Plus, ScanLine } from '@/components/icons';
 import { Colors } from '@/constants/theme';
 import { createMedication } from '@/services/api-client';
 import MedicineManagement from '@/features/medications/MedicineManagement';

@@ -5,10 +5,12 @@ and use Metro **Reload**. These changes add no native module. A build predating
 the merged OCR dependency still needs one native rebuild. The `/chat` route
 redirects to **Assistant**. Expo Go and web cannot run the local model.
 
-If Metro reports an icon module missing inside `lucide-react-native` even though
-the file exists in `node_modules`, stop that dev server and restart with
-`npx expo start --dev-client --port 8087 --clear`. This refreshes Metro's file map;
-it does not rebuild the native app or change any database. Use Reload afterward.
+The app imports Lucide through `src/components/icons.ts`, which uses the package's
+public per-icon exports. This avoids traversing the full icon catalog, which caused
+recurring Windows Metro resolution errors for unrelated icons even when their files
+were present. If an older server still reports the catalog entry file, stop it and
+restart with `npx expo start --dev-client --port 8087 --clear`, then use Reload.
+No native rebuild or database change is required for this JavaScript import fix.
 
 ## First launch
 

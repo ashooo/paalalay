@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
-import { House, Pill, NotebookPen, MessageCircleHeart, Stethoscope } from 'lucide-react-native';
+import { House, Pill, NotebookPen, MessageCircleHeart, Stethoscope } from '@/components/icons';
 import { Colors } from '@/constants/theme';
 
 export default function AppTabs() {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import { MessageCircleHeart, Send, ShieldCheck } from 'lucide-react-native';
+import { MessageCircleHeart, Send, ShieldCheck } from '@/components/icons';
 import { createAgentController } from '@/ai/agent-controller';
 import { createLocalModelRuntime } from '@/ai/local-model';
 import { prepareLocalModel } from '@/ai/model-provisioning';

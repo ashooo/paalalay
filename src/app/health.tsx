@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Plus, ChartNoAxesCombined } from 'lucide-react-native';
+import { Plus, ChartNoAxesCombined } from '@/components/icons';
 import { Colors } from '@/constants/theme';
 import { logHealthMeasurement } from '@/services/api-client';
 import HealthHistory from '@/features/health/HealthHistory';

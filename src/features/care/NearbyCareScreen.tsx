@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import * as Location from 'expo-location';
-import { Hospital, MapPin } from 'lucide-react-native';
+import { Hospital, MapPin } from '@/components/icons';
 import { Colors } from '@/constants/theme';
 import { careSearchUrl, type CareKind } from './maps-search';
 
