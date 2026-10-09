@@ -11,3 +11,4 @@ require('./production-startup.test.cjs');
 require('./production-handlers.test.cjs');
 require('./measurement-grounding.test.cjs');
 require('./dashboard-data.test.cjs');
+require('./memories.test.cjs');

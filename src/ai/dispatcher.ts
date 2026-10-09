@@ -14,6 +14,7 @@ export type DispatchOutcome =
   | { kind: 'confirmation'; review: ConfirmationReview };
 
 const labels: Record<string, string> = {
+  text: 'Memory to keep on this device', memory_id: 'Memory ID to forget',
   medicine: 'Medicine name sent to NHS lookup', topic: 'Guidance topic',
   name: 'Medication name', strength_text: 'Strength', dosage_form: 'Form', instructions: 'Instructions',
   start_date: 'Start date', end_date: 'End date', source: 'Source', medication_id: 'Medication ID',

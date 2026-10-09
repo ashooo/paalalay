@@ -98,10 +98,13 @@ test('merged API writes validate inputs, retain IDs/history, and reads never see
     assert.equal((await doctorService.searchSpecialists({ specialty: 'Cardiology', limit: 31 }, readAdapter)).error.code, 'VALIDATION_ERROR');
     db.prepare('INSERT INTO doctors (id, doctor_name, specialty, facility_name, address, city) VALUES (?, ?, ?, ?, ?, ?)').run('00000000-0000-4000-8000-000000000001', 'Synthetic placeholder', 'Cardiology', 'Synthetic clinic', 'Synthetic address', 'Pasig');
     const searched = await doctorService.searchSpecialists({ specialty: 'cardiology', city: 'pasig' }, readAdapter);
-    assert.equal(searched.data.results.length, 1);
+    assert.equal(searched.data.results.length, 0);
     assert.equal((await doctorService.searchSpecialists({ specialty: 'cardiology', city: 'Cebu' }, readAdapter)).data.results.length, 0);
     const details = await doctorService.searchDoctorsWithDetails({ specialty: 'cardiology' }, readAdapter);
-    assert.equal(details.data.doctors[0].verified_at, null);
+    assert.equal(details.data.doctors.length, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM doctors').get().n, 1, 'Unverified saved rows are preserved but never presented as providers');
+    db.prepare('UPDATE doctors SET source_url = ?, verified_at = ? WHERE id = ?').run('https://hospital.test/provider', '2026-10-01T00:00:00Z', '00000000-0000-4000-8000-000000000001');
+    assert.equal((await doctorService.searchSpecialists({ specialty: 'cardiology' }, readAdapter)).data.results.length, 1);
     db.close();
     closeServerDatabase();
     const reopened = new DatabaseSync(databasePath, { readOnly: true });

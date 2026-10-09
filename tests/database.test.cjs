@@ -38,7 +38,7 @@ test('baseline migration and confirmed BP writes persist across real SQLite conn
     return originalLoad.call(this, name, ...args);
   };
   try {
-    const storage = require('../src/db/chat-storage.ts');
+    const storage = require('./fixtures/chat-storage.ts');
     const prepared = await storage.prepareChatDatabase();
     assert.equal(prepared.migrations.length, 1);
     assert.equal(prepared.migrations[0].version, 1);

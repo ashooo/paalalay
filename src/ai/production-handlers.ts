@@ -3,10 +3,12 @@ import { getMedicineManagement } from '../features/medications/management-servic
 import { todayOccurrences } from '../features/medications/occurrences';
 import { parseToolResult, type ToolData, type ToolHandlers, type ToolName, type ToolResult } from '../contracts/tools';
 import { createMedicineReferenceHandlers } from './medicine-guidance';
+import { createMemoryToolHandlers } from './memory-handlers';
 
 const validated = <N extends ToolName>(name: N, result: unknown) => parseToolResult(name, result) as ToolResult<ToolData<N>>;
 export function createProductionToolHandlers(): ToolHandlers {
   return {
+    ...createMemoryToolHandlers(),
     ...createMedicineReferenceHandlers(),
     list_medications: async args => validated('list_medications', await client.fetchMedications(args.active_only)),
     create_medication: async args => validated('create_medication', await client.createMedication(args)),

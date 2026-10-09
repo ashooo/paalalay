@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
-import { DATABASE_NAME, initializeDatabase } from './index';
-import { toolError, type ToolHandlers, type ToolInput } from '../contracts/tools';
+import { DATABASE_NAME, initializeDatabase } from '../../src/db/index';
+import { toolError, type ToolHandlers, type ToolInput } from '../../src/contracts/tools';
 
 // Call only from the explicit development setup action; never during startup.
 export async function prepareChatDatabase() {

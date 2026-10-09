@@ -1,6 +1,7 @@
+import { VERIFIED_DOCTOR_SQL } from './provenance';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DoctorRecord, SearchSpecialistsParams } from './types';
-import { CURATED_SPECIALISTS } from './seed-data';
+
 
 export class DoctorsRepository {
   /**
@@ -10,7 +11,7 @@ export class DoctorsRepository {
     db: SQLiteDatabase,
     params: SearchSpecialistsParams
   ): Promise<DoctorRecord[]> {
-    const conditions: string[] = ['specialty LIKE ?'];
+    const conditions: string[] = [VERIFIED_DOCTOR_SQL, 'specialty LIKE ?'];
     const sqlParams: any[] = [`%${params.specialty}%`];
 
     if (params.city && params.city.trim()) {
@@ -44,6 +45,7 @@ export class DoctorsRepository {
     const query = `
       SELECT id, doctor_name, specialty, facility_name, address, city, latitude, longitude, phone, source_url, verified_at
       FROM doctors
+      WHERE ${VERIFIED_DOCTOR_SQL}
       ORDER BY city ASC, specialty ASC
       LIMIT ?;
     `;
@@ -59,7 +61,7 @@ export class DoctorsRepository {
     id: string
   ): Promise<DoctorRecord | null> {
     const row = await db.getFirstAsync<DoctorRecord>(
-      'SELECT * FROM doctors WHERE id = ?;',
+      `SELECT * FROM doctors WHERE id = ? AND ${VERIFIED_DOCTOR_SQL};`,
       [id]
     );
     return row || null;
@@ -70,42 +72,9 @@ export class DoctorsRepository {
    */
   static async getSpecialties(db: SQLiteDatabase): Promise<string[]> {
     const rows = await db.getAllAsync<{ specialty: string }>(
-      'SELECT DISTINCT specialty FROM doctors ORDER BY specialty ASC;'
+      `SELECT DISTINCT specialty FROM doctors WHERE ${VERIFIED_DOCTOR_SQL} ORDER BY specialty ASC;`
     );
     return rows.map((r) => r.specialty);
   }
 
-  /**
-   * Seeds the curated list of specialists into SQLite if table is empty.
-   */
-  static async seedCuratedDoctors(db: SQLiteDatabase): Promise<void> {
-    const countRow = await db.getFirstAsync<{ count: number }>(
-      'SELECT COUNT(*) as count FROM doctors;'
-    );
-    if (countRow && countRow.count > 0) {
-      return;
-    }
-
-    for (const doc of CURATED_SPECIALISTS) {
-      await db.runAsync(
-        `INSERT OR IGNORE INTO doctors (
-          id, doctor_name, specialty, facility_name, address, city,
-          latitude, longitude, phone, source_url, verified_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-        [
-          doc.id,
-          doc.doctor_name || null,
-          doc.specialty,
-          doc.facility_name,
-          doc.address,
-          doc.city,
-          doc.latitude || null,
-          doc.longitude || null,
-          doc.phone || null,
-          doc.source_url || null,
-          doc.verified_at || null,
-        ]
-      );
-    }
-  }
 }

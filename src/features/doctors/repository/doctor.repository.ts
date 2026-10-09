@@ -1,3 +1,4 @@
+import { VERIFIED_DOCTOR_SQL } from '../provenance';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDatabase } from '@/db';
 import type {
@@ -34,7 +35,7 @@ export class DoctorRepository {
     const specialtyTerm = `%${input.specialty.trim()}%`;
     const limit = Math.min(Math.max(input.limit ?? 20, 1), 30);
 
-    const conditions: string[] = ['specialty LIKE ? COLLATE NOCASE'];
+    const conditions: string[] = [VERIFIED_DOCTOR_SQL, 'specialty LIKE ? COLLATE NOCASE'];
     const params: (string | number)[] = [specialtyTerm];
 
     if (input.city && input.city.trim().length > 0) {
@@ -75,7 +76,7 @@ export class DoctorRepository {
     const specialtyTerm = `%${input.specialty.trim()}%`;
     const limit = Math.min(Math.max(input.limit ?? 20, 1), 30);
 
-    const conditions: string[] = ['specialty LIKE ? COLLATE NOCASE'];
+    const conditions: string[] = [VERIFIED_DOCTOR_SQL, 'specialty LIKE ? COLLATE NOCASE'];
     const params: (string | number)[] = [specialtyTerm];
 
     if (input.city && input.city.trim().length > 0) {
@@ -114,7 +115,7 @@ export class DoctorRepository {
   async getDoctorById(id: string, db?: SQLiteDatabase): Promise<DoctorModel | null> {
     const database = await this.getDb(db);
     const row = await database.getFirstAsync<DoctorModel>(
-      'SELECT * FROM doctors WHERE id = ? LIMIT 1;',
+      `SELECT * FROM doctors WHERE id = ? AND ${VERIFIED_DOCTOR_SQL} LIMIT 1;`,
       [id]
     );
     return row ?? null;

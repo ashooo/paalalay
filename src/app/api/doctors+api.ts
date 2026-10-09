@@ -1,3 +1,4 @@
+import { VERIFIED_DOCTOR_SQL } from '@/features/doctors/provenance';
 import { getDb } from '@/db/server-db';
 
 
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const city = url.searchParams.get('city');
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '30', 10), 1), 50);
 
-    const conditions: string[] = [];
+    const conditions: string[] = [VERIFIED_DOCTOR_SQL];
     const params: any[] = [];
 
     if (specialty && specialty.trim()) {

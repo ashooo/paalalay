@@ -1,4 +1,4 @@
-import type { ToolHandlers } from '../contracts/tools';
+import type { ToolHandlers } from '../../src/contracts/tools';
 
 /** Synthetic responses for development only. Does not open or write a database. */
 export function createMockToolHandlers(): ToolHandlers {

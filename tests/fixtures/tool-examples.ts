@@ -1,10 +1,11 @@
-import type { ToolInput, ToolName } from '../contracts/tools';
+import type { ToolInput, ToolName } from '../../src/contracts/tools';
 
 const id = '00000000-0000-4000-8000-000000000001';
 const instant = '2026-10-09T10:00:00.000Z';
 
 /** Synthetic inputs only. These are not instructions or inferred patient values. */
 export const toolExamples = {
+  list_memories: {}, remember_memory: { text: 'I prefer short replies' }, forget_memory: { memory_id: id, text: 'I prefer short replies' },
   lookup_medicine_reference: { medicine: 'Amoxicillin' },
   search_medicine_guidance: { medicine: 'Amoxicillin', topic: 'missed_dose' },
   create_medication: { name: 'Example medicine', strength_text: '5 mg', source: 'manual' },

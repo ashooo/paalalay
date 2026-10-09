@@ -175,8 +175,8 @@ export default function DoctorSearchScreen() {
             ]}
           >
             {isVerified
-              ? `✓ Verified on ${dateFormatted} • ${item.source_url ? 'View directory source ↗' : 'Official Directory'}`
-              : 'Unverified placeholder'}
+              ? `Source checked on ${dateFormatted} • View directory source ↗`
+              : 'Source verification unavailable'}
           </Text>
         </TouchableOpacity>
       </View>

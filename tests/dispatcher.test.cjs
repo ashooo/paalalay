@@ -12,7 +12,7 @@ require.extensions['.ts'] = (module, filename) => {
   module._compile(outputText, filename);
 };
 const { createToolDispatcher } = require('../src/ai/dispatcher.ts');
-const { createMockToolHandlers } = require('../src/ai/mock-handlers.ts');
+const { createMockToolHandlers } = require('./fixtures/mock-handlers.ts');
 const { toolInputSchemas, toolMetadata, getModelTools } = require('../src/contracts/tools.ts');
 
 const id = '00000000-0000-4000-8000-000000000001';
@@ -22,7 +22,7 @@ const success = { status: 'success', data: { log_id: id, log_type: 'blood_pressu
 
 test('all frozen public tools have validators and model schemas; internal OCR is excluded', () => {
   const tools = getModelTools();
-  assert.equal(tools.length, 16);
+  assert.equal(tools.length, 19);
   assert.deepEqual(tools.map((t) => t.function.name), Object.keys(toolInputSchemas));
   assert.equal(tools.some((t) => t.function.name === 'extract_prescription_text'), false);
   for (const tool of tools) assert.equal(tool.function.parameters.additionalProperties, false);
@@ -158,7 +158,7 @@ test('service errors are preserved; exceptions and invalid responses are sanitiz
 });
 
 test('tool examples stay compatible with every frozen tool schema', () => {
-  const { toolExamples } = require('../src/ai/tool-examples.ts');
+  const { toolExamples } = require('./fixtures/tool-examples.ts');
   for (const [name, input] of Object.entries(toolExamples)) {
     assert.equal(toolInputSchemas[name].safeParse(input).success, true, name);
   }
@@ -217,7 +217,7 @@ test('native model adapter validates paths, passes tool definitions, and release
     assert.equal(formattedOptions.tool_choice, 'none');
     const pending = runtime.complete('Record blood pressure 120/80', true);
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(completionOptions.tools.length, 16);
+    assert.equal(completionOptions.tools.length, 19);
     assert.equal(completionOptions.parallel_tool_calls, false);
     await runtime.stop();
     assert.equal(stops, 1);

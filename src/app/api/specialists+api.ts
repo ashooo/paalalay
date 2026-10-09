@@ -1,3 +1,4 @@
+import { VERIFIED_DOCTOR_SQL } from '@/features/doctors/provenance';
 import { getDb } from '@/db/server-db';
 
 
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const conditions: string[] = ['specialty LIKE ?'];
+    const conditions: string[] = [VERIFIED_DOCTOR_SQL, 'specialty LIKE ?'];
     const params: any[] = [`%${specialty.trim()}%`];
 
     if (city && city.trim()) {
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const conditions: string[] = ['specialty LIKE ?'];
+    const conditions: string[] = [VERIFIED_DOCTOR_SQL, 'specialty LIKE ?'];
     const params: any[] = [`%${specialty.trim()}%`];
 
     if (city && typeof city === 'string' && city.trim()) {

@@ -48,4 +48,6 @@ example
 *.gguf
 
 # Local database
-paalalay.db
+*.db
+*.db-shm
+*.db-wal
