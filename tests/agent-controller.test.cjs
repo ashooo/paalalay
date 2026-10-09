@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { createAgentController } = require('../src/ai/agent-controller.ts');
+const { MODEL_INPUT_TOKENS } = require('../src/ai/model-config.ts');
 
 const bpResult = { status: 'success', data: { log_id: '00000000-0000-4000-8000-000000000001', log_type: 'blood_pressure', recorded_at: '2026-10-09T10:00:00.000Z' } };
 const call = (name = 'log_blood_pressure', args = '{"systolic":120,"diastolic":80}', id = 'native_call') => ({ text: 'Already saved!', toolCalls: [{ id, name, arguments: args }] });
@@ -157,7 +158,7 @@ test('agent completion budget survives separate confirmation pauses for distinct
 test('agent trims complete older turns and preserves the active tool exchange', async () => {
   const { agent, requests } = setup([answer('Older answer'), call('list_medications', '{}'), answer()], {
     list_medications: async () => ({ status: 'success', data: { medications: [] } }),
-  }, { countTokens: async (messages) => messages.some((m) => m.content === 'Old turn') && messages.some((m) => m.content === 'Current turn') ? 4000 : 100 });
+  }, { countTokens: async (messages) => messages.some((m) => m.content === 'Old turn') && messages.some((m) => m.content === 'Current turn') ? MODEL_INPUT_TOKENS + 1 : 100 });
   await agent.send('Old turn');
   await agent.send('Current turn');
   assert.equal(requests[1].messages.some((m) => m.content === 'Old turn'), false);
@@ -165,17 +166,24 @@ test('agent trims complete older turns and preserves the active tool exchange', 
 });
 
 test('agent context overflow stops before inference or tool execution', async () => {
-  const { agent, requests } = setup([], {}, { countTokens: async () => 5000 });
+  const { agent, requests } = setup([], {}, { countTokens: async () => MODEL_INPUT_TOKENS + 1 });
   await agent.send('Too large');
   assert.equal(requests.length, 0);
   assert.match(agent.getSnapshot().entries.at(-1).content, /too large/);
+});
+
+test('agent accepts a conversational prompt larger than the previous 4096-token context', async () => {
+  const { agent, requests } = setup([answer('Hello')], {}, { countTokens: async () => 6000 });
+  await agent.send('Continue our conversation');
+  assert.equal(requests.length, 1);
+  assert.equal(agent.getSnapshot().entries.at(-1).content, 'Hello');
 });
 
 test('agent oversized active tool result remains intact and stops before another model or tool call', async () => {
   let executions = 0;
   const { agent, requests } = setup([call('list_medications', '{}')], {
     list_medications: async () => { executions++; return { status: 'success', data: { medications: [] } }; },
-  }, { countTokens: async (messages) => messages.some((m) => m.role === 'tool') ? 5000 : 100 });
+  }, { countTokens: async (messages) => messages.some((m) => m.role === 'tool') ? MODEL_INPUT_TOKENS + 1 : 100 });
   await agent.send('List medications');
   assert.equal(requests.length, 1);
   assert.equal(executions, 1);

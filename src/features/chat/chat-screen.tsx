@@ -26,7 +26,7 @@ export default function ChatScreen() {
 
 function ChatSession({ preview, switchPreview, restartSession }: { preview: boolean; switchPreview: () => void; restartSession: () => void }) {
   const [session] = useState(() => {
-    const runtime = preview ? createScriptedPreview() : createLocalModelRuntime();
+    const runtime = preview ? createScriptedPreview() : createLocalModelRuntime(['list_medications', 'log_blood_pressure']);
     return { runtime, agent: createAgentController(runtime, createMockToolHandlers()) };
   });
   const snapshot = useSyncExternalStore(session.agent.subscribe, session.agent.getSnapshot, session.agent.getSnapshot);

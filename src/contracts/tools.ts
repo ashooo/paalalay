@@ -113,8 +113,8 @@ export function isToolName(name: string): name is ToolName {
 }
 
 // JSON Schema is generated from the same validators used by the dispatcher.
-export function getModelTools() {
-  return (Object.keys(toolInputSchemas) as ToolName[]).map((name) => ({
+export function getModelTools(names: readonly ToolName[] = Object.keys(toolInputSchemas) as ToolName[]) {
+  return names.map((name) => ({
     type: 'function' as const,
     function: {
       name,

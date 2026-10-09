@@ -213,7 +213,7 @@ test('native model adapter validates paths, passes tool definitions, and release
     assert.equal(options.model, 'file:///models/example.gguf');
     assert.equal(options.n_gpu_layers, 0);
     assert.equal(await runtime.countTokens([{ role: 'user', content: 'Hello' }], false), 3);
-    assert.equal(formattedOptions.tools.length, 14);
+    assert.equal(formattedOptions.tools, undefined);
     assert.equal(formattedOptions.tool_choice, 'none');
     const pending = runtime.complete('Record blood pressure 120/80', true);
     await new Promise((resolve) => setImmediate(resolve));

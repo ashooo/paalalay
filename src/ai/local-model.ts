@@ -1,10 +1,20 @@
 import type { LlamaContext } from 'llama.rn';
 
-import { getModelTools } from '../contracts/tools';
+import { getModelTools, type ToolName } from '../contracts/tools';
 import type { ConversationMessage, LocalModelRuntime } from './local-model.types';
+import { MODEL_CONTEXT_TOKENS, MODEL_OUTPUT_TOKENS } from './model-config';
 
 /** Lazy native import keeps tool-only testing available when the native module is absent. */
-export function createLocalModelRuntime(): LocalModelRuntime {
+export function createLocalModelRuntime(toolNames?: readonly ToolName[]): LocalModelRuntime {
+  const tools = getModelTools(toolNames);
+  const chatOptions = (withTools: boolean) => ({
+    jinja: true,
+    enable_thinking: false,
+    chat_template_kwargs: { enable_thinking: false },
+    tools: withTools ? tools : undefined,
+    tool_choice: withTools ? 'auto' : 'none',
+    parallel_tool_calls: false,
+  });
   let context: LlamaContext | undefined;
   let disposed = false;
   let queue: Promise<unknown> = Promise.resolve();
@@ -31,7 +41,7 @@ export function createLocalModelRuntime(): LocalModelRuntime {
           await previous.release();
         }
         const { initLlama } = await import('llama.rn');
-        context = await initLlama({ model: path, n_ctx: 4096, n_gpu_layers: 0, use_mlock: false });
+        context = await initLlama({ model: path, n_ctx: MODEL_CONTEXT_TOKENS, n_gpu_layers: 0, use_mlock: false });
       });
     },
     generate(messages, withTools) {
@@ -43,13 +53,9 @@ export function createLocalModelRuntime(): LocalModelRuntime {
         try {
           const result = await context.completion({
             messages,
-            n_predict: 256,
+            n_predict: MODEL_OUTPUT_TOKENS,
             temperature: 0,
-            jinja: true,
-            chat_template_kwargs: { enable_thinking: false },
-            tools: getModelTools(),
-            tool_choice: withTools ? 'auto' : 'none',
-            parallel_tool_calls: false,
+            ...chatOptions(withTools),
           });
           return {
             text: result.content || result.text,
@@ -63,10 +69,7 @@ export function createLocalModelRuntime(): LocalModelRuntime {
     countTokens(messages, withTools) {
       return enqueue(async () => {
         if (disposed || !context) throw new Error('Load a model first.');
-        const formatted = await context.getFormattedChat(messages, null, {
-          jinja: true, tools: getModelTools(), tool_choice: withTools ? 'auto' : 'none',
-          parallel_tool_calls: false, chat_template_kwargs: { enable_thinking: false },
-        });
+        const formatted = await context.getFormattedChat(messages, null, chatOptions(withTools));
         return (await context.tokenize(formatted.prompt)).tokens.length;
       });
     },

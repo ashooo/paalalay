@@ -39,8 +39,13 @@ UI changes such as removing a tab need a Metro reload, not a native rebuild.
 
 Native tool selection depends on the GGUF and its chat template. The Android
 device test is required before claiming this works with the installed model.
-There is no cloud inference fallback. Other public tools currently return
-`NOT_FOUND`; only medication listing and blood-pressure logging have mock handlers.
+There is no cloud inference fallback. Only medication listing and blood-pressure
+logging are advertised to the model, matching the connected mock handlers. The
+full public registry remains available to the dispatcher; unavailable handlers
+return `NOT_FOUND`. Tool-free explanations omit schemas to conserve context.
+The native context is 8,192 tokens, shared with the controller's input budget;
+256 tokens are reserved for each answer and 64 for a safety margin. Older complete
+turns are trimmed when necessary, preserving the active request and tool exchange.
 This chat does not connect to SQLite or persist health records.
 
 ## Browser UI verification
@@ -74,7 +79,7 @@ Failed writes never retry automatically.
 
 Before inference the runtime counts the fully formatted prompt, including tool
 schemas. Older complete turns are removed from the model input until it fits the
-3776-token input budget (4096 context minus 256 output and 64 reserve). The system
+7872-token input budget (8192 context minus 256 output and 64 reserve). The system
 prompt and current user/tool exchange are never truncated. Oversized active
 requests stop before another tool executes. Trimming model input does not erase
 the displayed transcript.

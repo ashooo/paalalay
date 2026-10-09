@@ -1,4 +1,5 @@
 import { createToolDispatcher, type ConfirmationReview } from './dispatcher';
+import { MODEL_INPUT_TOKENS } from './model-config';
 import type { ConversationMessage, ConversationModel, ModelToolCall } from './local-model.types';
 import { isToolName, toolError, toolInputSchemas, toolMetadata, type ToolHandlers, type ToolResult } from '../contracts/tools';
 
@@ -60,12 +61,12 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
     let start = 0;
     while (true) {
       const messages = [systemMessage, ...history.slice(start).flat()];
-      // Match the runtime's 4096-token context, reserve 256 output tokens + 64 safety tokens.
+      // Match native allocation, reserving output tokens and a safety margin.
       const count = await model.countTokens(messages, withTools);
       if (stopped || closed) return undefined;
-      if (count <= 3776) return messages;
+      if (count <= MODEL_INPUT_TOKENS) return messages;
       if (start >= history.length - 1) {
-        notice('The active request is too large for the model context. No additional tool was executed. Shorten the message or start a new chat.');
+        notice(`The active request is too large for the model context (${count} input tokens; limit ${MODEL_INPUT_TOKENS}, including system instructions and tool schemas). No additional tool was executed. Shorten the message or start a new chat.`);
         return undefined;
       }
       start++; // Drop only complete older user turns, never part of an active exchange.
