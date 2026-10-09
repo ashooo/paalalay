@@ -156,3 +156,68 @@ test('service errors are preserved; exceptions and invalid responses are sanitiz
     assert.equal((await dispatcher.confirm(review.id)).error.code, 'PERMISSION_DENIED');
   }
 });
+
+test('test bench examples stay compatible with every frozen tool schema', () => {
+  const { toolExamples } = require('../src/ai/tool-examples.ts');
+  for (const [name, input] of Object.entries(toolExamples)) {
+    assert.equal(toolInputSchemas[name].safeParse(input).success, true, name);
+  }
+});
+
+test('web model adapter fails explicitly while retaining an inert cleanup', async () => {
+  const { createLocalModelRuntime } = require('../src/ai/local-model.web.ts');
+  const runtime = createLocalModelRuntime();
+  await assert.rejects(runtime.load('file:///model.gguf'), /development build/);
+  await assert.rejects(runtime.complete('Hello', false), /development build/);
+  await runtime.dispose();
+});
+
+test('native model adapter validates paths, passes tool definitions, and releases after an in-flight generation', async () => {
+  const Module = require('node:module');
+  const originalLoad = Module._load;
+  let options;
+  let completionOptions;
+  let finish;
+  let releases = 0;
+  Module._load = function(request, ...args) {
+    if (request === 'llama.rn') return {
+      initLlama: async (params) => {
+        options = params;
+        return {
+          completion: async (params) => {
+            completionOptions = params;
+            await new Promise((resolve) => { finish = resolve; });
+            return { text: 'raw', content: 'hello', tool_calls: [{ function: { name: 'log_blood_pressure', arguments: '{"systolic":120,"diastolic":80}' } }] };
+          },
+          release: async () => { releases++; },
+        };
+      },
+    };
+    return originalLoad.call(this, request, ...args);
+  };
+  try {
+    const { createLocalModelRuntime } = require('../src/ai/local-model.ts');
+    const runtime = createLocalModelRuntime();
+    await assert.rejects(runtime.load('C:/models/example.gguf'), /file:\/\/\//);
+    assert.equal(options, undefined);
+    await assert.rejects(runtime.complete('Hello', false), /Load a model/);
+    await runtime.load('file:///models/example.gguf');
+    assert.equal(options.model, 'file:///models/example.gguf');
+    assert.equal(options.n_gpu_layers, 0);
+    const pending = runtime.complete('Record blood pressure 120/80', true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(completionOptions.tools.length, 14);
+    assert.equal(completionOptions.parallel_tool_calls, false);
+    const disposal = runtime.dispose();
+    assert.equal(releases, 0);
+    finish();
+    const result = await pending;
+    assert.equal(result.text, 'hello');
+    assert.equal(result.toolCalls[0].name, 'log_blood_pressure');
+    await disposal;
+    assert.equal(releases, 1);
+    await assert.rejects(runtime.load('file:///models/example.gguf'), /closed/);
+  } finally {
+    Module._load = originalLoad;
+  }
+});
