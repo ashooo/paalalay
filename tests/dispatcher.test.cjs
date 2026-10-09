@@ -157,7 +157,7 @@ test('service errors are preserved; exceptions and invalid responses are sanitiz
   }
 });
 
-test('test bench examples stay compatible with every frozen tool schema', () => {
+test('tool examples stay compatible with every frozen tool schema', () => {
   const { toolExamples } = require('../src/ai/tool-examples.ts');
   for (const [name, input] of Object.entries(toolExamples)) {
     assert.equal(toolInputSchemas[name].safeParse(input).success, true, name);

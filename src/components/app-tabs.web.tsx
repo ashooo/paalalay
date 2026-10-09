@@ -32,11 +32,6 @@ export default function AppTabs() {
               <TabButton>Chat</TabButton>
             </TabTrigger>
           )}
-          {__DEV__ && (
-            <TabTrigger name="dev-tools" href="/dev-tools" asChild>
-              <TabButton>Test bench</TabButton>
-            </TabTrigger>
-          )}
         </CustomTabList>
       </TabList>
     </Tabs>

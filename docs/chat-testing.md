@@ -7,9 +7,20 @@ The model file remains separate from the app package.
 
 ## Native model test
 
-Provision the GGUF using the instructions in `docs/test-bench.md`, then enter its
-actual device-local file URI and select **Load model**. The example URI assumes
-`com.paalalay.app` on Android; it must match the installed app and file location.
+The GGUF in `assets/models/Qwen3-0.6B-Q8_0.gguf` must be copied onto the device
+separately. For a connected device with a debuggable `com.paalalay.app` installed,
+run these commands from the project root (they copy only the model file):
+
+```powershell
+adb push assets/models/Qwen3-0.6B-Q8_0.gguf /data/local/tmp/paalalay-model.gguf
+adb shell run-as com.paalalay.app mkdir -p files/models
+adb shell run-as com.paalalay.app cp /data/local/tmp/paalalay-model.gguf files/models/Qwen3-0.6B-Q8_0.gguf
+```
+
+Enter `file:///data/user/0/com.paalalay.app/files/models/Qwen3-0.6B-Q8_0.gguf`
+in **Chat** and select **Load model**. The package ID and path must match the
+actual installation. Expo Go and the browser cannot load the native model.
+UI changes such as removing a tab need a Metro reload, not a native rebuild.
 
 1. Send **List medications sample**. The model should choose `list_medications`,
    receive the synthetic empty list, and explain the result without confirmation.
@@ -52,7 +63,8 @@ and an optional review card. Confirm/cancel are trusted UI operations only.
 
 The native model adapter preserves tool-call IDs and forwards assistant proposals
 and matching `tool` responses in the next completion. Missing or reused IDs get
-unique session-local IDs. Single-prompt test-bench calls still use `complete`.
+unique session-local IDs. The runtime also supports single-prompt calls through
+`complete` for adapter tests.
 
 Each user message permits at most five completions, including resumed generation
 after confirmation. The fifth is tool-free. Errors and cancellations allow only
