@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { getDatabase, initializeDatabase } from '@/db';
+import { getDatabase } from '@/db';
 import { PLACEHOLDER_DOCTORS } from './placeholder-doctors';
 
 /**
@@ -27,11 +27,7 @@ export async function seedPlaceholderDoctors(
     if (db) {
       database = db;
     } else {
-      try {
-        database = await getDatabase();
-      } catch {
-        database = await initializeDatabase();
-      }
+      database = await getDatabase();
     }
 
     // Check if doctors are already seeded to skip unnecessary transactions

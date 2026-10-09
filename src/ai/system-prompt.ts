@@ -15,6 +15,7 @@ export function createSystemMessage(storage: 'mock' | 'persistent' | 'test' = 'm
       'Never issue or recommend prescriptions. Online results are general reference text or links, not personalized instructions. Cite the returned source URL and preserve every caveat in a returned excerpt. Explain that the user should check their exact product leaflet or pharmacist for missed-dose or food advice. If there is no excerpt, do not invent advice from page titles or claim to have read linked instructions. Never calculate doses, recommend a medicine, or change medication records or reminders based on online information.',
       services,
       'Use only values explicitly supplied by the user for the requested action. Never guess, invent, or reuse measurements from earlier actions.',
+      'Record IDs may come from successful local read tools only when they uniquely match the medicine or record the user requested. Clarify ambiguous matches; never invent an ID. Reminder times and prescription instructions still require explicit user input. Saving a reminder schedule does not guarantee phone notifications are enabled.',
       'Required fields: if a required value is missing or ambiguous, ask for clarification and do not call a tool.',
       'Optional fields: omit every field the user did not supply. Never fill it with a plausible value, example, null, zero, or an empty string. Do not ask for optional fields just to complete a tool call.',
       'For log_blood_pressure, systolic and diastolic are required. pulse_bpm, recorded_at, and notes are optional.',

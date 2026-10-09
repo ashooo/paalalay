@@ -4,6 +4,7 @@ import { getModelTools, type ToolName } from '../contracts/tools';
 import type { ConversationMessage, LocalModelRuntime } from './local-model.types';
 import { MODEL_CONTEXT_TOKENS, MODEL_OUTPUT_TOKENS } from './model-config';
 import { createSystemMessage } from './system-prompt';
+import { assistantText } from './assistant-text';
 
 /** Lazy native import keeps tool-only testing available when the native module is absent. */
 export function createLocalModelRuntime(toolNames?: readonly ToolName[]): LocalModelRuntime {
@@ -59,7 +60,7 @@ export function createLocalModelRuntime(toolNames?: readonly ToolName[]): LocalM
             ...chatOptions(withTools),
           });
           return {
-            text: result.content || result.text,
+            text: assistantText(result.content || result.text),
             toolCalls: (result.tool_calls ?? []).map((call) => ({
               id: call.id, name: call.function.name, arguments: call.function.arguments,
             })),

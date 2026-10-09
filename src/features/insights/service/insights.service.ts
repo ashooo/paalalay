@@ -1,12 +1,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import {
-  GetHealthSummaryInput,
   GetHealthSummaryInputSchema,
   GetHealthSummaryOutputData,
   HealthLogType,
   ServiceEnvelope,
-  BloodPressureReading,
-  BloodSugarReading,
 } from '../contracts.proposal';
 import {
   healthDataProvider,
@@ -120,7 +117,7 @@ export class InsightsService {
   async getDashboardOverview(db?: SQLiteDatabase): Promise<GetHealthSummaryOutputData> {
     const today = new Date();
     const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(today.getDate() - 7);
+    sevenDaysAgo.setUTCDate(today.getUTCDate() - 6);
 
     const from = sevenDaysAgo.toISOString().split('T')[0];
     const to = today.toISOString().split('T')[0];
@@ -131,24 +128,7 @@ export class InsightsService {
       return result.data;
     }
 
-    return {
-      from,
-      to,
-      counts: {
-        blood_pressure: 0,
-        blood_sugar: 0,
-        temperature: 0,
-        weight: 0,
-        symptom: 0,
-      },
-      latest_readings: {
-        blood_pressure: null,
-        blood_sugar: null,
-        temperature: null,
-        weight: null,
-        symptom: null,
-      },
-    };
+    throw new Error(result.error.message);
   }
 
   /**

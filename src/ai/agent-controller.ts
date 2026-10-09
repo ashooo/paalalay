@@ -3,6 +3,7 @@ import { MODEL_INPUT_TOKENS } from './model-config';
 import { createSystemMessage } from './system-prompt';
 import type { ConversationMessage, ConversationModel, ModelToolCall } from './local-model.types';
 import { isToolName, toolError, toolInputSchemas, toolMetadata, type ToolHandlers, type ToolResult } from '../contracts/tools';
+import { measurementGrounding } from './measurement-grounding';
 
 export type AgentPhase = 'idle' | 'generating' | 'executing' | 'awaiting_confirmation' | 'stopping';
 export type ChatEntry = { id: number; role: 'user' | 'assistant' | 'tool' | 'notice'; content: string; toolName?: string };
@@ -19,7 +20,7 @@ function canonical(value: unknown): string {
 }
 
 /** Model and services are injected; no React, native modules, storage, or network access. */
-export function createAgentController(model: ConversationModel, handlers: ToolHandlers, options?: { persistentTools?: boolean }) {
+export function createAgentController(model: ConversationModel, handlers: ToolHandlers, options?: { persistentTools?: boolean; groundMeasurementWrites?: boolean }) {
   const instructions = createSystemMessage(options?.persistentTools ? 'persistent' : 'mock');
   const dispatcher = createToolDispatcher(handlers);
   const listeners = new Set<() => void>();
@@ -109,6 +110,8 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
       let args: unknown;
       try { args = JSON.parse(call.arguments); }
       catch { appendResult(call, toolError('VALIDATION_ERROR', 'Tool arguments were not valid JSON. Ask the user to clarify.')); continue; }
+      const grounding = options?.groundMeasurementWrites && measurementGrounding(call.name, args, current()[0].content);
+      if (grounding) { appendResult(call, toolError('VALIDATION_ERROR', grounding)); continue; }
       if (call.name === 'search_medicine_guidance') {
         const parsed = toolInputSchemas.search_medicine_guidance.safeParse(args);
         if (parsed.success && !localMedicineChecks.has(parsed.data.medicine.toLowerCase())) {

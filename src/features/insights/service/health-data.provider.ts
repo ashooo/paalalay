@@ -1,10 +1,8 @@
 import * as SQLite from 'expo-sqlite';
-import { DATABASE_NAME, initializeDatabase } from '@/db';
+import { getDatabase } from '@/db';
 import type { HealthLog, MedicationIntake } from '@/db/types';
 import type {
   HealthLogType,
-  BloodPressureReading,
-  BloodSugarReading,
   LatestReadingsSummary,
   MedicationAdherenceSummary,
 } from '../contracts.proposal';
@@ -25,7 +23,7 @@ export class HealthDataProvider {
   private async getDb(db?: SQLite.SQLiteDatabase): Promise<SQLite.SQLiteDatabase> {
     if (db) return db;
     if (!this.dbPromise) {
-      this.dbPromise = initializeDatabase();
+      this.dbPromise = getDatabase().catch(error => { this.dbPromise = null; throw error; });
     }
     return this.dbPromise;
   }
@@ -179,6 +177,13 @@ export class HealthDataProvider {
     log: Omit<HealthLog, 'id' | 'created_at'>,
     db?: SQLite.SQLiteDatabase
   ): Promise<string> {
+    if (!db) {
+      // The screen uses the same validated, platform-aware write path as the Log tab.
+      const { logHealthMeasurement } = await import('../../../services/api-client');
+      const result = await logHealthMeasurement({ log_type: log.log_type, systolic: log.systolic ?? undefined, diastolic: log.diastolic ?? undefined, pulse_bpm: log.pulse_bpm ?? undefined, glucose_value: log.glucose_value ?? undefined, glucose_unit: log.glucose_unit ?? undefined, glucose_context: log.glucose_context ?? undefined, temperature_c: log.temperature_c ?? undefined, weight_kg: log.weight_kg ?? undefined, symptom_name: log.symptom_name ?? undefined, symptom_severity: log.symptom_severity ?? undefined, notes: log.notes ?? undefined, recorded_at: log.recorded_at });
+      if (result.status !== 'success') throw new Error(result.error.message);
+      return result.data.log_id;
+    }
     const database = await this.getDb(db);
     const id = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const nowUtc = new Date().toISOString();

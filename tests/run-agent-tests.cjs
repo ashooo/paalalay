@@ -7,3 +7,7 @@ require('./care-search.test.cjs');
 require('./medication-management.test.cjs');
 require('./medicine-reference.test.cjs');
 require('./medicine-guidance.test.cjs');
+require('./production-startup.test.cjs');
+require('./production-handlers.test.cjs');
+require('./measurement-grounding.test.cjs');
+require('./dashboard-data.test.cjs');

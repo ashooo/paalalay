@@ -9,11 +9,68 @@ let cachedDbInstance: SQLite.SQLiteDatabase | null = null;
 let initializationPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /**
- * Runs all pending migrations sequentially.
- * Verifies table existence in sqlite_master to guarantee baseline tables exist,
- * even if schema_migrations was partially populated in a previous run.
+ * Primary SQLite connection accessor for all feature repositories (Dev 1, Dev 2, Dev 3, Dev 4).
+ * Creates the approved baseline only on first install. Existing files are never migrated here.
  */
-async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
+export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (cachedDbInstance) {
+    return cachedDbInstance;
+  }
+
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      const freshInstall = !new File(SQLite.defaultDatabaseDirectory, DATABASE_NAME).exists;
+      const database = await SQLite.openDatabaseAsync(DATABASE_NAME);
+      try {
+        if (freshInstall) {
+          // Explicitly approved: an empty first-install database, never a reset or seed.
+          await database.withTransactionAsync(async () => {
+            const baseline = migrations.find(migration => migration.version === 1);
+            if (!baseline) throw new Error('Baseline schema unavailable.');
+            await baseline.up(database);
+            await database.runAsync('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)', [baseline.version, baseline.name, new Date().toISOString()]);
+          });
+        }
+        await database.execAsync('PRAGMA foreign_keys = ON;');
+        const versions = await database.getAllAsync<{ version: number }>('SELECT version FROM schema_migrations;');
+        if (versions.some(row => !migrations.some(migration => migration.version === row.version))) {
+          throw new Error('Your saved database was created by a different app version. It has not been changed.');
+        }
+        if (!migrations.every((migration) => versions.some((row) => row.version === migration.version))) {
+          throw new Error('Your saved database needs a reviewed upgrade. It has not been changed.');
+        }
+        // Detect incomplete legacy schemas without repairing them or rewriting migration history.
+        await database.getAllAsync('SELECT id, strength_text, instructions FROM medications LIMIT 0');
+        await database.getAllAsync('SELECT id, timezone, enabled FROM medication_schedules LIMIT 0');
+        await database.getAllAsync('SELECT id, scheduled_for, status FROM medication_intakes LIMIT 0');
+        await database.getAllAsync('SELECT id, log_type, recorded_at FROM health_logs LIMIT 0');
+        await database.getAllAsync('SELECT id, source_url, verified_at FROM doctors LIMIT 0');
+        return database;
+      } catch (error) {
+        await database.closeAsync();
+        throw error;
+      }
+    })();
+  }
+
+  try {
+    cachedDbInstance = await initializationPromise;
+    return cachedDbInstance;
+  } finally {
+    initializationPromise = null;
+  }
+}
+
+/**
+ * Initializes the SQLite database, verifies foreign key support,
+ * and runs all pending migrations in ascending version order.
+ */
+export async function initializeDatabase(
+  db?: SQLite.SQLiteDatabase
+): Promise<SQLite.SQLiteDatabase> {
+  const database = db ?? (await SQLite.openDatabaseAsync(DATABASE_NAME));
+
+  // Enforce foreign key constraints globally
   await database.execAsync('PRAGMA foreign_keys = ON;');
 
   // Ensure migrations tracking table exists (Table 8 - Dev 4)
@@ -31,16 +88,6 @@ async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
   );
   const appliedVersions = new Set(appliedRows.map((r: { version: number }) => r.version));
 
-  // Sanity check: verify if baseline tables actually exist in sqlite_master
-  // If baseline tables were not created (e.g. from a dirty state or interrupted run),
-  // force migration 1 to re-run and execute CREATE TABLE IF NOT EXISTS.
-  const baselineTable = await database.getFirstAsync<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='doctors';"
-  );
-  if (!baselineTable) {
-    appliedVersions.delete(1);
-  }
-
   // Sort migrations strictly in ascending version order
   const sortedMigrations = [...migrations].sort((a, b) => a.version - b.version);
 
@@ -51,91 +98,15 @@ async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
         await migration.up(database);
         const appliedAt = new Date().toISOString();
         await database.runAsync(
-          'INSERT OR REPLACE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?);',
+          'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?);',
           [migration.version, migration.name, appliedAt]
         );
       });
       console.log(`[SQLite Migration] Applied version ${migration.version}: ${migration.name}`);
     }
   }
-}
 
-/**
- * Primary SQLite connection accessor for all feature repositories (Dev 1, Dev 2, Dev 3, Dev 4).
- * Opens the existing database. Schema setup is an explicit operation only.
- */
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (cachedDbInstance) {
-    return cachedDbInstance;
-  }
-
-  if (!initializationPromise) {
-    initializationPromise = (async () => {
-      if (!new File(SQLite.defaultDatabaseDirectory, DATABASE_NAME).exists) {
-        throw new Error('Database missing. Use the explicit setup control in Assistant.');
-      }
-      const database = await SQLite.openDatabaseAsync(DATABASE_NAME);
-      try {
-        await database.execAsync('PRAGMA foreign_keys = ON;');
-        const versions = await database.getAllAsync<{ version: number }>('SELECT version FROM schema_migrations;');
-        if (!migrations.every((migration) => versions.some((row) => row.version === migration.version))) {
-          throw new Error('Database setup is required. Use the explicit setup control in Assistant.');
-        }
-        cachedDbInstance = database;
-        return database;
-      } catch (error) {
-        await database.closeAsync();
-        throw error;
-      }
-    })();
-  }
-
-  try {
-    const db = await initializationPromise;
-    cachedDbInstance = db;
-    return db;
-  } finally {
-    initializationPromise = null;
-  }
-}
-
-/**
- * Initializes the SQLite database, verifies foreign key support,
- * and runs all pending migrations in ascending version order.
- * Memoizes execution to guarantee concurrent callers share a single migration run.
- */
-export async function initializeDatabase(
-  db?: SQLite.SQLiteDatabase
-): Promise<SQLite.SQLiteDatabase> {
-  if (db) {
-    await runMigrations(db);
-    cachedDbInstance = db;
-    return db;
-  }
-
-  if (cachedDbInstance) {
-    return cachedDbInstance;
-  }
-
-  if (initializationPromise) {
-    return initializationPromise;
-  }
-
-  initializationPromise = (async () => {
-    try {
-      const database = await SQLite.openDatabaseAsync(DATABASE_NAME);
-      await runMigrations(database);
-      cachedDbInstance = database;
-      return database;
-    } catch (error) {
-      cachedDbInstance = null;
-      throw error;
-    } finally {
-      initializationPromise = null;
-    }
-  })();
-
-  return initializationPromise;
+  return database;
 }
 
 /**
