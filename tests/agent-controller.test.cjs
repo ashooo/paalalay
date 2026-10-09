@@ -136,6 +136,24 @@ test('agent caps completions at five, making the fifth tool-free', async () => {
   assert.equal(agent.getSnapshot().completions, 5);
 });
 
+test('agent completion budget survives separate confirmation pauses for distinct writes', async () => {
+  let executions = 0;
+  const proposals = [120, 121, 122, 123].map((systolic) => call('log_blood_pressure', JSON.stringify({ systolic, diastolic: 80 })));
+  const { agent, requests } = setup([...proposals, answer()], {
+    log_blood_pressure: async () => { executions++; return bpResult; },
+  });
+  await agent.send('Test a sequence of synthetic readings');
+  for (let i = 0; i < 4; i++) {
+    assert.equal(agent.getSnapshot().phase, 'awaiting_confirmation');
+    assert.equal(agent.getSnapshot().completions, i + 1);
+    await agent.confirm(agent.getSnapshot().review.id);
+  }
+  assert.equal(executions, 4);
+  assert.equal(requests.length, 5);
+  assert.equal(requests[4].tools, false);
+  assert.equal(agent.getSnapshot().phase, 'idle');
+});
+
 test('agent trims complete older turns and preserves the active tool exchange', async () => {
   const { agent, requests } = setup([answer('Older answer'), call('list_medications', '{}'), answer()], {
     list_medications: async () => ({ status: 'success', data: { medications: [] } }),
@@ -150,6 +168,18 @@ test('agent context overflow stops before inference or tool execution', async ()
   const { agent, requests } = setup([], {}, { countTokens: async () => 5000 });
   await agent.send('Too large');
   assert.equal(requests.length, 0);
+  assert.match(agent.getSnapshot().entries.at(-1).content, /too large/);
+});
+
+test('agent oversized active tool result remains intact and stops before another model or tool call', async () => {
+  let executions = 0;
+  const { agent, requests } = setup([call('list_medications', '{}')], {
+    list_medications: async () => { executions++; return { status: 'success', data: { medications: [] } }; },
+  }, { countTokens: async (messages) => messages.some((m) => m.role === 'tool') ? 5000 : 100 });
+  await agent.send('List medications');
+  assert.equal(requests.length, 1);
+  assert.equal(executions, 1);
+  assert.equal(agent.getSnapshot().entries.some((entry) => entry.role === 'tool'), true);
   assert.match(agent.getSnapshot().entries.at(-1).content, /too large/);
 });
 
@@ -182,6 +212,18 @@ test('agent stop during a handler displays its real result without another model
   assert.equal(requests.length, 1);
   assert.equal(agent.getSnapshot().entries.some((e) => e.role === 'tool' && JSON.parse(e.content).status === 'success'), true);
   assert.match(agent.getSnapshot().entries.at(-1).content, /could not be undone/);
+});
+
+test('agent stop immediately after confirmation cancels a handler that has not started', async () => {
+  let executions = 0;
+  const { agent } = setup([call()], { log_blood_pressure: async () => { executions++; return bpResult; } });
+  await agent.send('Record');
+  const confirming = agent.confirm(agent.getSnapshot().review.id);
+  const stopping = agent.stop();
+  await Promise.all([confirming, stopping]);
+  assert.equal(executions, 0);
+  const result = agent.getSnapshot().entries.find((entry) => entry.role === 'tool');
+  assert.equal(JSON.parse(result.content).error.code, 'CANCELLED');
 });
 
 test('agent reset cancels a pending review, clears memory, and invalidates old approvals', async () => {

@@ -161,6 +161,10 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
       pending = undefined;
       publish('executing');
       return launch(async () => {
+        if (stopped || closed) {
+          appendResult(action.call, dispatcher.cancel(id));
+          return;
+        }
         const result = await dispatcher.confirm(id);
         appendResult(action.call, result);
         if (result.status === 'success' && action.writeKey) successfulWrites.add(action.writeKey);
