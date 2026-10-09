@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -11,10 +12,10 @@ import {
 } from 'react-native';
 import { linawTheme } from '../theme.tokens';
 import {
-  insightsService,
   BloodPressureTrendPoint,
   BloodSugarTrendPoint,
 } from '../service/insights.service';
+import { loadDashboardData as readDashboard } from '../dashboard-data';
 import type { GetHealthSummaryOutputData } from '../contracts.proposal';
 import {
   BloodPressureRecentCard,
@@ -34,29 +35,30 @@ export default function HealthDashboardScreen() {
   const [bpTrends, setBpTrends] = useState<BloodPressureTrendPoint[]>([]);
   const [sugarTrends, setSugarTrends] = useState<BloodSugarTrendPoint[]>([]);
   const [isLogModalVisible, setIsLogModalVisible] = useState(false);
+  const [logType, setLogType] = useState<'blood_pressure' | 'blood_sugar'>('blood_pressure');
+  const openLog = (type: 'blood_pressure' | 'blood_sugar') => { setLogType(type); setIsLogModalVisible(true); };
+  const [error, setError] = useState('');
+  const [truncated, setTruncated] = useState(false);
+  const request = useRef(0);
 
   const loadDashboardData = useCallback(async () => {
+    const version = ++request.current;
+    setError('');
     try {
-      const [overview, bpHistory, sugarHistory] = await Promise.all([
-        insightsService.getDashboardOverview(),
-        insightsService.getBloodPressureTrends(7),
-        insightsService.getBloodSugarTrends(7),
-      ]);
-
+      const { overview, bp: bpHistory, sugar: sugarHistory, truncated } = await readDashboard();
+      if (request.current !== version) return;
       setSummaryData(overview);
       setBpTrends(bpHistory);
       setSugarTrends(sugarHistory);
+      setTruncated(truncated);
     } catch (err) {
-      console.error('Failed to load health insights:', err);
+      if (request.current === version) setError(err instanceof Error ? err.message : 'Could not load saved readings.');
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (request.current === version) { setIsLoading(false); setIsRefreshing(false); }
     }
   }, []);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+  useFocusEffect(useCallback(() => { void loadDashboardData(); return () => { request.current++; }; }, [loadDashboardData]));
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -64,7 +66,7 @@ export default function HealthDashboardScreen() {
   };
 
   const totalLogsCount = summaryData
-    ? Object.values(summaryData.counts).reduce((a, b) => a + b, 0)
+    ? Object.entries(summaryData.counts).filter(([key]) => key !== 'total').reduce((sum, [,count]) => sum + count, 0)
     : 0;
 
   return (
@@ -84,7 +86,8 @@ export default function HealthDashboardScreen() {
           </View>
 
           <TouchableOpacity
-            onPress={() => setIsLogModalVisible(true)}
+            accessibilityRole="button"
+            onPress={() => openLog('blood_pressure')}
             activeOpacity={0.8}
             style={[styles.addReadingButton, { backgroundColor: colors.primary }]}
           >
@@ -120,6 +123,9 @@ export default function HealthDashboardScreen() {
             />
           }
         >
+          {!!error && <Text accessibilityRole="alert" style={[styles.safetyText, { color: colors.error }]}>{error} Pull down to try again.</Text>}
+          {truncated && <Text style={[styles.safetyText, { color: colors.textMuted }]}>Charts show the latest 100 readings in the selected seven UTC calendar days.</Text>}
+          {summaryData && <>
           {/* Section: Latest Readings */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
@@ -135,12 +141,12 @@ export default function HealthDashboardScreen() {
 
             <BloodPressureRecentCard
               reading={summaryData?.latest_readings?.blood_pressure}
-              onRecordPress={() => setIsLogModalVisible(true)}
+              onRecordPress={() => openLog('blood_pressure')}
             />
 
             <BloodSugarRecentCard
               reading={summaryData?.latest_readings?.blood_sugar}
-              onRecordPress={() => setIsLogModalVisible(true)}
+              onRecordPress={() => openLog('blood_sugar')}
             />
           </View>
 
@@ -166,11 +172,12 @@ export default function HealthDashboardScreen() {
           {/* Section: Medication Adherence */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Medication Adherence
+              Recorded medication intakes
             </Text>
 
             <AdherenceCard adherence={summaryData?.medication_adherence} />
           </View>
+          </>}
 
           {/* Clinical Safety & Privacy Note */}
           <View style={styles.safetyFooter}>
@@ -184,6 +191,8 @@ export default function HealthDashboardScreen() {
 
       {/* Manual Quick Log Modal */}
       <QuickLogModal
+        key={logType}
+        initialType={logType}
         visible={isLogModalVisible}
         onClose={() => setIsLogModalVisible(false)}
         onSuccess={() => {

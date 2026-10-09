@@ -1,3 +1,7 @@
+# Historical branch integration notes
+
+This records the earlier integration review. For current automatic startup and connected handlers, see `chat-testing.md` and `production-readiness.md`. Manual setup and scripted chat controls described below have been removed.
+
 # Development branch integration — 10 October 2026
 
 Follow-up: the user chose location-based hospital/clinic search instead of

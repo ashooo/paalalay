@@ -1,134 +1,80 @@
-# Development chat and conversation loop
+# Assistant and automatic startup
 
-Start `npx expo start --dev-client`, open the existing Android development build,
-and select **Assistant**. The legacy `/chat` route redirects to it. Chat history is held
-in memory and disappears when the session unmounts or **New chat** is selected.
-The model file remains separate from the app package.
+Start `npx expo start --dev-client`, open the existing native development build,
+and use Metro **Reload**. These changes add no native module. A build predating
+the merged OCR dependency still needs one native rebuild. The `/chat` route
+redirects to **Assistant**. Expo Go and web cannot run the local model.
 
-## Native model test
+## First launch
 
-### Explicit SQLite setup and save test
+Native startup creates an empty baseline SQLite database **only if the database
+file does not exist**, under the user's explicit fresh-install approval. It never
+seeds records. Existing files are opened and checked; missing columns, missing
+migrations and unknown schema versions report an error without repair, reset or
+migration. Future upgrades need separate approval. Desktop web databases are not
+automatically created. Do not delete an existing database to bypass an error.
 
-Get explicit database approval before using setup or the persistent save test.
-On Android, select **Set up database and connect tools** in Assistant. This applies
-the migration from `main` only on that explicit action, then switches the chat
-to real SQLite handlers. It unloads the model; load it again after setup.
-Startup, Reload, and New chat never apply migrations automatically.
+Opening Assistant checks the managed or legacy model in the app's documents/models
+directory. A valid existing Qwen3-0.6B-Q8_0 file is reused. Otherwise the app downloads
+639,446,688 bytes from the official Qwen repository, verifies its size and SHA-256,
+then loads it automatically. There are no model URI/load controls or database setup
+buttons. Keep the app open and use Wi-Fi for the initial download; reserve at least
+800 MB of free phone storage. Subsequent inference works offline. Failed downloads
+offer Retry while Medicines and Log remain usable. Unmount aborts preparation and
+releases the model safely. There is no cloud inference fallback.
 
-Select **Save synthetic BP and verify persistence** to insert one labelled
-120/80 test record and read it after closing and reopening the database. The
-record remains saved, and its ID is displayed. Then test **BP 120/80 sample**:
-**Confirm and save** writes a real `health_logs` row; cancellation writes none.
-Medication listing reads real rows, while other tools remain unavailable.
-Chat history is still held only in memory. Browser preview continues using mocks.
+The pinned revision, URL and checksum are in `src/ai/model-asset.ts`. The official
+[Qwen model repository](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF) publishes it
+under Apache-2.0. GGUF files remain excluded from Git and build uploads.
 
-The save test uses the app's `paalalay.db`, rather than the README's desktop
-SQLite command. For inspection, use Expo's SQLite DevTools inspector.
+## Chat behavior
 
-Verified on the Android x86_64 emulator with Qwen3-0.6B-Q8_0: native setup
-recognized migration 1; the direct synthetic save survived closing and reopening
-SQLite. The model selected `log_blood_pressure`, displayed a confirmation, and
-after approval inserted exactly one row and explained the real returned log ID.
-Cancellation left the row count unchanged. The successful prompt explicitly
-supplied 120/80, pulse 60, and the synthetic timestamp `2023-10-05T12:00:00Z`.
+All public tools use real handlers. Reads execute immediately; record/schedule
+writes require review and **Confirm and save**. Reminder times saved by chat do
+not establish notification delivery: enable phone alerts in Medicines and grant
+the OS notification permission. Online medicine reference lookup requires a
+successful local lookup and separate permission for each NHS request. Chat and
+saved records are not sent to NHS.
 
-The shared system prompt now distinguishes required and optional fields: missing
-required values need clarification; unsupplied optional values must be omitted.
-For BP, the service assigns the current time when `recorded_at` is omitted.
-Numeric examples are deliberately excluded because this GGUF copied an example
-reading when measurements were missing during prompt testing.
-With the final prompt on Android in mock mode, "Record my blood pressure."
-asked for systolic and diastolic readings without a tool call. Replying "120/80"
-produced a review containing only `systolic: 120` and `diastolic: 80`, omitting
-pulse, timestamp, and notes. This proposal was not confirmed or saved.
+Each user turn permits five model completions. Multiple calls are rejected;
+invalid arguments, cancellations and service failures get one tool-free explanation.
+Successful identical writes are not repeated during the same turn. Stop cancels
+a pending review; an executing handler cannot be undone. New chat clears memory,
+not medical records. Conversation is not persisted. Thinking is disabled, reasoning
+markers are removed, and responses appear when each completion finishes rather
+than token streaming. Context is 8,192 tokens; output reserves 512 tokens.
 
-Schema validation checks types and ranges, rather than proving values came from
-the user. Prompt instructions do not guarantee factual arguments; review all
-fields and cancel invented values. Earlier prompt testing produced an unsupplied
-pulse and historical timestamp; that proposal was cancelled.
-Empty `<think>` markers can also appear in its displayed final response despite
-thinking being disabled. Chat tool selection remains model-dependent.
+Numeric measurement arguments must appear in the current message; glucose,
+temperature and weight units must be explicit. This guard catches invented
+numbers and guessed units, but does not prove semantic correctness or validate
+medicine instructions against a prescription. Review every proposed field.
+The model does not prescribe, change doses or infer a catch-up schedule.
 
-The GGUF in `assets/models/Qwen3-0.6B-Q8_0.gguf` must be copied onto the device
-separately. For a connected device with a debuggable `com.paalalay.app` installed,
-run these commands from the project root (they copy only the model file):
+## Verification
 
-```powershell
-adb push assets/models/Qwen3-0.6B-Q8_0.gguf /data/local/tmp/paalalay-model.gguf
-adb shell run-as com.paalalay.app mkdir -p files/models
-adb shell run-as com.paalalay.app cp /data/local/tmp/paalalay-model.gguf files/models/Qwen3-0.6B-Q8_0.gguf
-```
+`npm run test:agent`, `npm run lint` and `npx tsc --noEmit` validate the controller,
+dispatcher, real handler mapping, grounding, model verification and first-install
+behavior. SQLite tests use separate temporary synthetic databases under the user's
+test approval; they do not access the existing app database. Android JavaScript
+export checks Hermes bundling, not native model performance or notification delivery.
 
-Enter `file:///data/user/0/com.paalalay.app/files/models/Qwen3-0.6B-Q8_0.gguf`
-in **Assistant** and select **Load model**. The package ID and path must match the
-actual installation. Expo Go and the browser cannot load the native model.
-UI changes such as removing a tab need a Metro reload, not a native rebuild.
-The integrated OCR dependency requires a new native development build once;
-see `development-integration.md` for the branch review and remaining device checks.
+On a native development build, verify these before release:
 
-1. Send **List medications sample**. The model should choose `list_medications`,
-   receive the synthetic empty list, and explain the result without confirmation.
-2. Send **BP 120/80 sample**. The model should propose `log_blood_pressure` and the
-   chat must pause at a review card showing both measured values and units.
-3. Select **Confirm mock action**. A synthetic tool response appears, followed
-   by a model-generated explanation. The assistant must identify this as a mock
-   action, rather than claim a record was saved.
-4. Repeat and select **Cancel action**. The handler must not run; the model gets
-   the cancellation result and can only explain it, with tools disabled.
-5. Send **Missing BP sample**. Expect a clarification rather than guessed values.
-6. Select **Stop** during generation or review. A pending write is cancelled. An
-   already executing handler cannot be undone; its actual result is retained.
-7. **New chat** clears transcript memory while retaining the loaded model.
-   **Unload model** releases the native context and clears that chat session.
+1. Reuse the existing verified model without downloading. Separately test a fresh
+   installation, initial download progress, cancellation, Retry, offline failure
+   and insufficient storage. Do not uninstall a data-bearing app for this test.
+2. Ask an ordinary question and list medicines. No read confirmation should appear.
+3. Give an explicitly synthetic BP reading, review its exact fields and confirm
+   only in an approved synthetic test environment. Verify one saved record after
+   reload, then test cancellation and Stop without any additional save.
+4. Ask to record BP without values and glucose without units. Expect clarification.
+5. Test medicine creation, schedule review, intake recording and history. Verify
+   permission denial, enabled notifications and delivery on the target device.
+6. Test local medicine lookup followed by NHS consent, denial, offline failure and
+   a clickable source. Check model wording against the source and exact leaflet.
+7. Navigate away during preparation/generation, return, and reset a conversation.
+   Check cleanup, keyboard layout, long reviews, dark mode and screen-reader labels.
 
-Native tool selection depends on the GGUF and its chat template. The Android
-device test is required before claiming this works with the installed model.
-There is no cloud inference fallback. Only medication listing and blood-pressure
-logging are advertised to the model, matching the connected mock handlers. The
-full public registry remains available to the dispatcher; unavailable handlers
-return `NOT_FOUND`. Tool-free explanations omit schemas to conserve context.
-The native context is 8,192 tokens, shared with the controller's input budget;
-256 tokens are reserved for each answer and 64 for a safety margin. Older complete
-turns are trimmed when necessary, preserving the active request and tool exchange.
-Mock mode does not persist health records; explicit database setup connects the
-two supported tools to SQLite.
-
-## Browser UI verification
-
-Run `npx expo start --web`, select **Chat**, and verify that native inference is
-unavailable. Select **Use scripted UI preview** to exercise the actual controller
-and confirmation UI with an explicitly labeled fake model. The preview recognizes
-the three sample messages above; it is not a language model or an automatic
-fallback. Confirm, cancel, missing inputs, immediate reads, reset, and disabled
-controls can be checked without native modules. **Exit scripted preview** ends
-and clears the preview session.
-
-## Controller and runtime integration
-
-`createAgentController(model, handlers)` receives a model implementing `generate`,
-`countTokens`, and `stop`, plus the existing typed `ToolHandlers`. It exposes
-`send`, `confirm`, `cancel`, `stop`, `reset`, `dispose`, `subscribe`, and
-`getSnapshot`. The snapshot contains transcript entries, phase, completion count,
-and an optional review card. Confirm/cancel are trusted UI operations only.
-
-The native model adapter preserves tool-call IDs and forwards assistant proposals
-and matching `tool` responses in the next completion. Missing or reused IDs get
-unique session-local IDs. The runtime also supports single-prompt calls through
-`complete` for adapter tests.
-
-Each user message permits at most five completions, including resumed generation
-after confirmation. The fifth is tool-free. Errors and cancellations allow only
-one tool-free explanation. Multiple calls are rejected; repeated successful writes
-with identical validated arguments cannot execute twice in the same user turn.
-Failed writes never retry automatically.
-
-Before inference the runtime counts the fully formatted prompt, including tool
-schemas. Older complete turns are removed from the model input until it fits the
-7872-token input budget (8192 context minus 256 output and 64 reserve). The system
-prompt and current user/tool exchange are never truncated. Oversized active
-requests stop before another tool executes. Trimming model input does not erase
-the displayed transcript.
-
-Run `npm run test:agent`, `npx tsc --noEmit`, and `npm run lint`. Controller tests
-inject fake model outputs and services; adapter tests fake the native context.
-They validate control flow, not actual model quality or Android inference.
+Browser verification covers Home, saved insights and Assistant's native requirement;
+it cannot establish native inference or confirmation-card behavior with a real GGUF.
+See `production-readiness.md` for remaining release checks.

@@ -9,8 +9,9 @@ export default function AppTabs() {
     headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.text,
     headerTitleStyle: { fontFamily: 'Manrope_700Bold' },
     tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.textMuted,
-    tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-    tabBarLabelStyle: { fontFamily: 'Manrope_600SemiBold', fontSize: 12 },
+    tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, minHeight: 64 },
+    tabBarLabelStyle: { fontFamily: 'Manrope_600SemiBold', fontSize: 12, lineHeight: 18 },
+    tabBarHideOnKeyboard: true,
     sceneStyle: { backgroundColor: colors.background },
   }}>
     <Tabs.Screen name="index" options={{ title: 'Paalalay', tabBarLabel: 'Home', tabBarIcon: ({ color }) => <House color={color} size={22} strokeWidth={1.75} /> }} />

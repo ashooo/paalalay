@@ -29,6 +29,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 }) => {
   const isDark = useColorScheme() === 'dark';
   const colors = isDark ? linawTheme.colors.dark : linawTheme.colors.light;
+  const units = [...new Set(sugarData.map(reading => reading.glucose_unit))];
+  if (type === 'blood_sugar' && units.length > 1) return <View>{units.map(unit => <TrendChart key={unit} title={`${title} · ${unit === 'mmol_L' ? 'mmol/L' : 'mg/dL'}`} type="blood_sugar" sugarData={sugarData.filter(reading => reading.glucose_unit === unit)} />)}</View>;
 
   const count = type === 'blood_pressure' ? bpData.length : sugarData.length;
 
@@ -61,7 +63,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     const singleReading =
       type === 'blood_pressure'
         ? `${bpData[0].systolic}/${bpData[0].diastolic} mmHg`
-        : `${sugarData[0].glucose_value} ${sugarData[0].glucose_unit}`;
+        : `${sugarData[0].glucose_value} ${sugarData[0].glucose_unit === 'mmol_L' ? 'mmol/L' : 'mg/dL'}`;
 
     return (
       <View
@@ -79,7 +81,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             {singleReading}
           </Text>
           <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-            1 reading recorded. Record a second reading to calculate trend direction.
+            1 reading recorded. Add more readings to see a pattern over time.
           </Text>
         </View>
       </View>

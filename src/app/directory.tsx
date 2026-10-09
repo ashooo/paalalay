@@ -5,7 +5,7 @@ import NearbyCareScreen from '@/features/care/NearbyCareScreen';
 import { Colors } from '@/constants/theme';
 
 export default function DirectoryRoute() {
-  const [tab, setTab] = useState<'specialists' | 'maps'>('specialists');
+  const [tab, setTab] = useState<'specialists' | 'maps'>('maps');
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 

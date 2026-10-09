@@ -16,8 +16,8 @@ export const AdherenceCard: React.FC<AdherenceCardProps> = ({ adherence }) => {
     return (
       <EmptyStateCard
         icon="💊"
-        title="No Medication Adherence Data"
-        description="Your scheduled doses, taken records, and adherence percentage will appear here."
+        title="No intake records yet"
+        description="Taken and skipped records will appear here. Unrecorded reminders are not included."
       />
     );
   }
@@ -37,7 +37,7 @@ export const AdherenceCard: React.FC<AdherenceCardProps> = ({ adherence }) => {
       <View style={styles.header}>
         <View style={[styles.badge, { backgroundColor: colors.surfaceVariant }]}>
           <Text style={[styles.badgeText, { color: colors.secondary }]}>
-            Medication Adherence
+            Recorded intakes
           </Text>
         </View>
         <Text style={[styles.periodText, { color: colors.textMuted }]}>
@@ -51,7 +51,7 @@ export const AdherenceCard: React.FC<AdherenceCardProps> = ({ adherence }) => {
             {percentage}%
           </Text>
           <Text style={[styles.rateLabel, { color: colors.textMuted }]}>
-            Doses Taken
+            Of recorded events taken
           </Text>
         </View>
 
@@ -94,7 +94,7 @@ export const AdherenceCard: React.FC<AdherenceCardProps> = ({ adherence }) => {
               ]}
             />
             <Text style={[styles.countLabel, { color: colors.textMuted }]}>
-              Total scheduled:
+              Total recorded:
             </Text>
             <Text style={[styles.countValue, { color: colors.text }]}>
               {adherence.scheduled_count}

@@ -1,260 +1,92 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { createAgentController } from '@/ai/agent-controller';
-import { createMedicineReferenceHandlers } from '@/ai/medicine-guidance';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { Link } from 'expo-router';
+import { MessageCircleHeart, Send, ShieldCheck } from 'lucide-react-native';
+import { createAgentController } from '@/ai/agent-controller';
 import { createLocalModelRuntime } from '@/ai/local-model';
-import { createMockToolHandlers } from '@/ai/mock-handlers';
+import { prepareLocalModel } from '@/ai/model-provisioning';
+import { createProductionToolHandlers } from '@/ai/production-handlers';
+import { toolMetadata, isToolName } from '@/contracts/tools';
 import { Colors } from '@/constants/theme';
-import { createDatabaseToolHandlers, prepareChatDatabase, testDatabasePersistence } from '@/db/chat-storage';
-import { createScriptedPreview } from './scripted-preview';
 
-function guidanceSources(content: string): { title: string; url: string }[] {
+function toolDisplay(content: string) {
   try {
     const result = JSON.parse(content);
-    return result.status === 'success' ? result.data.sources.filter((source: { title?: unknown; url?: unknown }) => typeof source.title === 'string' && typeof source.url === 'string' && /^https:\/\/www\.nhs\.uk\/medicines\/[a-z0-9-/]+\/$/.test(source.url)) : [];
+    if (result.status === 'error') return result.error.code === 'CANCELLED' ? 'Cancelled. Nothing new was saved.' : 'This action could not be completed. Nothing was retried automatically.';
+    const data = result.data;
+    if (data.log_id) return 'Reading saved on your phone.';
+    if (data.intake_id) return `Intake recorded as ${data.status}.`;
+    if (data.medication_id) return 'Medicine saved on your phone.';
+    if (data.schedule_ids) return 'Reminder times saved. Phone alerts can be enabled in Medicines.';
+    if (data.sources) return data.sources.some((source: { excerpt?: string }) => source.excerpt) ? 'General reference information found. Verify your exact product leaflet or ask a pharmacist.' : 'A source link was found. Check the page and your exact product leaflet.';
+    if (data.matches) return 'Local medicine-name reference checked. Names alone do not provide dosing advice.';
+    if (data.medications) return `${data.medications.length} saved medicine${data.medications.length === 1 ? '' : 's'} found.`;
+    return 'Your saved records were checked.';
+  } catch { return 'Action result received.'; }
+}
+function sources(content: string): { title: string; url: `https://${string}` }[] {
+  try {
+    const result = JSON.parse(content);
+    return result.status === 'success' && Array.isArray(result.data.sources) ? result.data.sources.filter((source: { title?: unknown; url?: unknown }) => typeof source.title === 'string' && typeof source.url === 'string' && /^https:\/\/www\.nhs\.uk\/medicines\/[a-z0-9-/]+\/$/.test(source.url)) : [];
   } catch { return []; }
 }
-
-function Button({ title, disabled, secondary, onPress }: {
-  title: string; disabled?: boolean; secondary?: boolean; onPress: () => void;
-}) {
-  const styles = useChatStyles();
-  return <Pressable accessibilityRole="button" accessibilityLabel={title} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [styles.button, secondary && styles.secondary, (pressed || disabled) && styles.dim]}>
-    <Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text>
-  </Pressable>;
-}
-
 export default function ChatScreen() {
-  const [preview, setPreview] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const [database, setDatabase] = useState(false);
-  const [databaseReport, setDatabaseReport] = useState('Database not connected. Setup runs only when requested.');
-  return <ChatSession key={`${preview}:${revision}:${database}`} preview={preview} database={database} databaseReport={databaseReport}
-    databaseReady={(report) => { setDatabaseReport(report); setDatabase(true); }} reportDatabase={setDatabaseReport}
-    switchPreview={() => setPreview(!preview)} restartSession={() => setRevision((value) => value + 1)} />;
-}
-
-function ChatSession({ preview, database, databaseReport, databaseReady, reportDatabase, switchPreview, restartSession }: {
-  preview: boolean; database: boolean; databaseReport: string; databaseReady: (report: string) => void;
-  reportDatabase: (report: string) => void; switchPreview: () => void; restartSession: () => void;
-}) {
-  const styles = useChatStyles();
-  const persistent = database && !preview;
+  const c = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [session] = useState(() => {
-    const runtime = preview ? createScriptedPreview() : createLocalModelRuntime(['list_medications', 'log_blood_pressure', 'lookup_medicine_reference', 'search_medicine_guidance']);
-    return { runtime, agent: createAgentController(runtime, { ...(persistent ? createDatabaseToolHandlers() : createMockToolHandlers()), ...createMedicineReferenceHandlers() }, { persistentTools: persistent }) };
+    const model = createLocalModelRuntime();
+    return { model, agent: createAgentController(model, createProductionToolHandlers(), { persistentTools: true, groundMeasurementWrites: true }) };
   });
   const snapshot = useSyncExternalStore(session.agent.subscribe, session.agent.getSnapshot, session.agent.getSnapshot);
-  const [uri, setUri] = useState('file:///data/user/0/com.paalalay.app/files/models/Qwen3-0.6B-Q8_0.gguf');
-  const [loaded, setLoaded] = useState(preview);
-  const [setupBusy, setSetupBusy] = useState(false);
-  const [actionBusy, setActionBusy] = useState(false);
-  const [modelStatus, setModelStatus] = useState(preview ? 'Scripted preview ready · no model running' : 'Model not loaded');
+  const [ready, setReady] = useState(false);
+  const [preparing, setPreparing] = useState(Platform.OS !== 'web');
+  const [preparation, setPreparation] = useState(Platform.OS === 'web' ? 'The private offline assistant is available in the Android and iOS app.' : 'Preparing your private assistant…');
+  const [attempt, setAttempt] = useState(0);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
-  const scrollRef = useRef<ScrollView>(null);
-  const setupLock = useRef(false);
-  const actionLock = useRef(false);
-  const mounted = useRef(true);
+  const scroll = useRef<ScrollView>(null);
   const lifecycle = useRef({ version: 0 });
-  const active = snapshot.phase !== 'idle';
-  const locked = active || setupBusy || actionBusy;
-
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let mounted = true;
+    const abort = new AbortController();
+    void prepareLocalModel(abort.signal, message => { if (mounted) setPreparation(message); })
+      .then(uri => { if (!mounted) return; setPreparation('Starting your assistant…'); return session.model.load(uri); })
+      .then(() => { if (mounted) { setReady(true); setPreparing(false); setPreparation('Ready · Runs on your phone'); } })
+      .catch(error => { if (mounted) { setPreparing(false); setPreparation(error instanceof Error ? error.message : 'The assistant could not start. You can still use Medicines and Log.'); } });
+    return () => { mounted = false; abort.abort(); };
+  }, [attempt, session]);
   useEffect(() => {
     const guard = lifecycle.current;
-    mounted.current = true;
-    guard.version++;
-    return () => {
-      mounted.current = false;
-      const cleanup = ++guard.version;
-      // React Strict Mode replays effects; release only if no setup replay follows.
-      void Promise.resolve().then(async () => {
-        if (guard.version !== cleanup) return;
-        await session.agent.dispose();
-        await session.runtime.dispose();
-      }).catch(() => {});
-    };
+    const version = ++guard.version;
+    return () => { queueMicrotask(() => { if (guard.version === version) { void session.agent.dispose().finally(() => session.model.dispose()).catch(() => {}); } }); };
   }, [session]);
-
-  async function configure() {
-    if (setupLock.current || actionLock.current || session.agent.getSnapshot().phase !== 'idle') return;
-    setupLock.current = true;
-    setSetupBusy(true);
-    setError('');
-    try {
-      setModelStatus('Loading the device-local model on CPU…');
-      await session.runtime.load(uri);
-      if (mounted.current) { setLoaded(true); setModelStatus(persistent ? 'Local model ready · SQLite services connected' : 'Local model ready · synthetic services connected'); }
-    } catch {
-      if (mounted.current) {
-        setLoaded(false);
-        setModelStatus('Model setup failed');
-        setError('Check that this development build includes llama.rn and that the device can read the file URI. No cloud fallback is used.');
-      }
-    } finally {
-      setupLock.current = false;
-      if (mounted.current) setSetupBusy(false);
-    }
+  const busy = snapshot.phase !== 'idle';
+  function send(message = draft) {
+    if (!ready || busy || !message.trim()) return;
+    setDraft(''); setError('');
+    void session.agent.send(message).catch(() => { setDraft(message); setError('Finish the current action before sending another message.'); });
   }
-
-  async function control(operation: () => Promise<void>) {
-    if (actionLock.current || setupLock.current) return;
-    actionLock.current = true;
-    setActionBusy(true);
-    setError('');
-    try { await operation(); }
-    catch { if (mounted.current) setError('This action is no longer available. Finish the current turn before trying again.'); }
-    finally {
-      actionLock.current = false;
-      if (mounted.current) setActionBusy(false);
-    }
-  }
-
-  function send(text = draft) {
-    if (!loaded || locked || !text.trim() || actionLock.current || setupLock.current) return;
-    setDraft('');
-    setError('');
-    void session.agent.send(text).catch(() => {
-      if (mounted.current) { setDraft(text); setError('Finish the current turn before sending another message.'); }
-    });
-  }
-
-  function resolveReview(confirm: boolean) {
-    const review = session.agent.getSnapshot().review;
-    if (!review || actionLock.current || setupLock.current) return;
-    setError('');
-    // The controller synchronously consumes the review; Stop remains available during follow-up.
-    void (confirm ? session.agent.confirm(review.id) : session.agent.cancel(review.id)).catch(() => {
-      if (mounted.current) setError('This confirmation is no longer valid.');
-    });
-  }
-
-  const status = {
-    idle: 'Ready', generating: 'Generating locally…', executing: 'Running tool…',
-    awaiting_confirmation: 'Waiting for your review', stopping: 'Stopping; waiting for the current operation…',
-  }[snapshot.phase];
-
-  return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
-        onContentSizeChange={() => { if (snapshot.entries.length) scrollRef.current?.scrollToEnd({ animated: true }); }}>
-        <Text style={styles.eyebrow}>RUNS ON THIS DEVICE</Text>
-        <Text style={styles.heading}>Alalay assistant</Text>
-        <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>{preview ? 'SCRIPTED UI PREVIEW · NO MODEL INFERENCE' : persistent ? 'LOCAL MODEL · SQLITE SERVICES' : 'LOCAL MODEL · MOCK SERVICES'}</Text>
-          <Text style={styles.body}>{persistent ? 'Chat history stays in memory. Medication listing reads SQLite; confirmed blood-pressure actions save locally. Use synthetic test values.' : 'History stays in memory. Only medication listing and blood-pressure recording have synthetic handlers. No health records are saved.'}</Text>
-          {Platform.OS === 'web' && <>
-            <Text style={styles.body}>Actual llama.rn inference needs an Android or iOS development build and a device-local GGUF. The browser has no native model.</Text>
-            <Button title={preview ? 'Exit scripted preview' : 'Use scripted UI preview'} disabled={locked} secondary onPress={switchPreview} />
-          </>}
-        </View>
-
-        {Platform.OS !== 'web' && !preview && <View style={styles.card}>
-          <Text style={styles.label}>Development database</Text>
-          <Text style={styles.body}>{databaseReport}</Text>
-          <Button title="Set up database and connect tools" disabled={locked || database} onPress={() => void control(async () => {
-            const result = await prepareChatDatabase();
-            databaseReady(`SQLite ready: ${result.path}. Applied migrations: ${result.migrations.map((item) => item.version).join(', ')}.`);
-          })} />
-          <Button title="Save synthetic BP and verify persistence" secondary disabled={locked || !database} onPress={() => void control(async () => {
-            const row = await testDatabasePersistence();
-            reportDatabase(`Verified after closing and reopening SQLite: ${row.systolic}/${row.diastolic}, record ${row.id}. This synthetic record remains saved.`);
-          })} />
-          <Text style={styles.body}>Setup switches this session to database tools and unloads the model. Load it again afterward. App startup never runs migrations.</Text>
-        </View>}
-
-        {!preview && <View style={styles.card}>
-          <Text style={styles.label}>Device model URI</Text>
-          <TextInput accessibilityLabel="Chat model URI" value={uri} onChangeText={setUri} editable={!locked && !loaded}
-            autoCorrect={false} autoCapitalize="none" style={styles.input} />
-          <Text style={styles.body}>This example path must exist on your device. The project’s model file is not bundled with the app.</Text>
-          <Text accessibilityLiveRegion="polite" style={styles.label}>{modelStatus}</Text>
-          <View style={styles.actions}>
-            <Button title="Load model" onPress={() => void configure()} disabled={locked || loaded || Platform.OS === 'web'} />
-            <Button title="Unload model" secondary disabled={locked || !loaded} onPress={() => void control(async () => {
-              await session.agent.reset();
-              await session.runtime.dispose();
-              if (mounted.current) restartSession();
-            })} />
-          </View>
-          <Text style={styles.body}>Unloading clears this in-memory chat session.</Text>
-        </View>}
-
-        <View style={styles.actions}>
-          <Button title="Online permission sample" secondary disabled={locked || !loaded} onPress={() => send('Find missed-dose information for Amoxicillin.')} />
-          <Button title="List medications sample" secondary disabled={locked || !loaded} onPress={() => send('List my medications.')} />
-          <Button title="BP 120/80 sample" secondary disabled={locked || !loaded} onPress={() => send('Record my blood pressure as 120/80.')} />
-          <Button title="Missing BP sample" secondary disabled={locked || !loaded} onPress={() => send('Record my blood pressure.')} />
-        </View>
-
-        {!snapshot.entries.length && <Text style={styles.empty}>{preview ? 'Choose a sample to exercise the conversation loop. Each write pauses here for your confirmation.' : 'Load your model to start a conversation. Each write pauses here for your confirmation.'}</Text>}
-        {snapshot.entries.map((item) => <View key={item.id} style={[styles.message, item.role === 'user' && styles.userMessage, item.role === 'notice' && styles.statusMessage]}>
-          <Text style={styles.messageLabel}>{item.role === 'tool' ? `${item.toolName === 'search_medicine_guidance' ? 'Online reference' : item.toolName === 'lookup_medicine_reference' ? 'Local reference' : persistent ? 'SQLite' : 'Mock'} tool result · ${item.toolName}` : item.role === 'notice' ? 'Action status' : item.role === 'user' ? 'You' : preview ? 'Scripted assistant' : 'Local assistant'}</Text>
-          <Text selectable style={item.role === 'tool' ? styles.code : styles.messageText}>{item.content}</Text>
-          {item.toolName === 'search_medicine_guidance' && guidanceSources(item.content).map(source => <Link key={source.url} href={source.url as `https://${string}`} style={styles.messageText}>{source.title} · Open NHS source</Link>)}
-        </View>)}
-
-        {snapshot.review && <View style={styles.review}>
-          <Text style={styles.reviewTitle}>{snapshot.review.title}</Text>
-          <Text style={styles.body}>{snapshot.review.toolName === 'search_medicine_guidance' ? 'Allow this lookup on nhs.uk? NHS receives your IP address and the requested medicine page. Only the medicine name and topic below select the lookup; your chat and saved records stay local. Approval applies once. Internet is required. Results are general source information, not a prescription. Check your exact product leaflet or pharmacist.' : persistent ? 'Review every value. Confirm saves this blood-pressure record to SQLite on this device.' : 'Review every value. Confirm runs a mock handler; no record is saved.'}</Text>
-          {snapshot.review.fields.map((field) => <View key={field.label} style={styles.field}>
-            <Text style={styles.label}>{field.label}</Text><Text selectable style={styles.messageText}>{field.value}</Text>
-          </View>)}
-          <View style={styles.actions}>
-            <Button title={snapshot.review.toolName === 'search_medicine_guidance' ? 'Allow this online lookup' : persistent ? 'Confirm and save' : 'Confirm mock action'} disabled={actionBusy} onPress={() => resolveReview(true)} />
-            <Button title="Cancel action" secondary disabled={actionBusy} onPress={() => resolveReview(false)} />
-          </View>
-        </View>}
-        {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-      </ScrollView>
-
-      <View style={styles.composer}>
-        <View style={styles.statusRow}>
-          <Text accessibilityLiveRegion="polite" style={styles.status}>{loaded ? status : modelStatus} · {snapshot.completions}/5</Text>
-          <Button title="Stop" secondary disabled={!active || actionBusy || setupBusy} onPress={() => void control(session.agent.stop)} />
-          <Button title="New chat" secondary disabled={locked || !snapshot.entries.length} onPress={() => void control(session.agent.reset)} />
-        </View>
-        <TextInput accessibilityLabel="Chat message" value={draft} onChangeText={setDraft} editable={loaded && !locked}
-          multiline placeholder={loaded ? 'Type a message…' : 'Load the native model first'} placeholderTextColor="#627987" style={[styles.input, styles.draft]} />
-        <Button title="Send message" disabled={locked || !loaded || !draft.trim()} onPress={() => send()} />
-      </View>
-    </KeyboardAvoidingView>
-  </SafeAreaView>;
+  const review = snapshot.review;
+  const online = review?.toolName === 'search_medicine_guidance';
+  const status = { idle: 'Ready', generating: 'Thinking…', executing: 'Completing your action…', awaiting_confirmation: 'Waiting for your review', stopping: 'Stopping…' }[snapshot.phase];
+  const button = (title: string, action: () => void, disabled = false, secondary = false) => <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={action} disabled={disabled} style={[styles.button, secondary && styles.secondary, disabled && styles.disabled]}><Text style={[styles.buttonText, secondary && { color: c.primary }]}>{title}</Text></Pressable>;
+  return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} onContentSizeChange={() => { if (snapshot.entries.length) scroll.current?.scrollToEnd({ animated: true }); }}>
+      <View style={styles.intro}><MessageCircleHeart size={36} color={c.primary} strokeWidth={1.75} /><Text style={styles.heading}>Kumusta. How can I help?</Text><Text style={styles.body}>Keep track of medicines and readings, or find general medicine information. I’ll ask before saving anything or going online.</Text><View style={styles.trust}><ShieldCheck color={c.primary} size={18}/><Text style={styles.caption}>Chat stays in memory on this device. No prescribing or diagnosis.</Text></View></View>
+      {!ready && <View style={styles.card}>{preparing && <ActivityIndicator color={c.primary}/>}<Text accessibilityLiveRegion="polite" style={styles.body}>{preparation}</Text>{!preparing && Platform.OS !== 'web' && button('Try again', () => { setPreparing(true); setAttempt(value => value + 1); })}</View>}
+      {!snapshot.entries.length && <View style={styles.suggestions}>{['Show my medicines', 'Show today’s reminders', 'Help me record a reading'].map(title => <View key={title}>{button(title, () => send(title), !ready || busy, true)}</View>)}</View>}
+      {snapshot.entries.map(entry => <View key={entry.id} style={[styles.message, entry.role === 'user' && styles.user]}>
+        <Text style={styles.label}>{entry.role === 'user' ? 'You' : entry.role === 'assistant' ? 'Alalay' : entry.toolName && isToolName(entry.toolName) ? toolMetadata[entry.toolName].title : 'Action status'}</Text>
+        <Text selectable style={styles.messageText}>{entry.role === 'tool' ? toolDisplay(entry.content) : entry.role === 'notice' && entry.content.startsWith('Proposed ') ? 'Reviewing the requested action…' : entry.content}</Text>
+        {entry.role === 'tool' && sources(entry.content).map(source => <Link key={source.url} href={source.url} style={styles.source}>{source.title} · NHS source</Link>)}
+      </View>)}
+      {review && <View style={styles.review}><Text style={styles.reviewHeading}>{review.title}</Text><Text style={styles.body}>{online ? 'Allow this lookup on nhs.uk? NHS receives your IP address and the requested medicine pages. Your chat and saved records are not sent. Permission applies to this lookup only. Verify the exact product leaflet or pharmacist before acting.' : 'Check every detail. Confirm saves this action on your phone.'}</Text>{review.fields.map(field => <View key={field.label}><Text style={styles.label}>{field.label}</Text><Text selectable style={styles.messageText}>{field.value}</Text></View>)}<View style={styles.suggestions}>{button(online ? 'Allow online lookup' : 'Confirm and save', () => { void session.agent.confirm(review.id).catch(() => setError('This review has expired.')); })}{button('Cancel', () => { void session.agent.cancel(review.id).catch(() => setError('This review has expired.')); }, false, true)}</View></View>}
+      {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    </ScrollView>
+    <View style={styles.composer}><View style={styles.status}><Text accessibilityLiveRegion="polite" style={styles.caption}>{ready ? status : preparing ? 'Preparing assistant…' : 'Assistant unavailable'}</Text>{busy ? button('Stop', () => { void session.agent.stop(); }, snapshot.phase === 'stopping', true) : snapshot.entries.length > 0 && button('New chat', () => { void session.agent.reset(); }, false, true)}</View><View style={styles.inputRow}><TextInput accessibilityLabel="Message Alalay" value={draft} onChangeText={setDraft} editable={ready && !busy} multiline placeholder="Message Alalay…" placeholderTextColor={c.textMuted} style={styles.input}/><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!ready || busy || !draft.trim()} onPress={() => send()} style={[styles.send, (!ready || busy || !draft.trim()) && styles.disabled]}><Send color={c.onPrimary} size={22}/></Pressable></View></View>
+  </KeyboardAvoidingView>;
 }
-
-function useChatStyles() {
-  const scheme = useColorScheme();
-  const c = Colors[scheme === 'dark' ? 'dark' : 'light'];
-  return useMemo(() => StyleSheet.create({
-  flex: { flex: 1 }, safe: { flex: 1, backgroundColor: c.background },
-  content: { padding: 20, paddingTop: 16, gap: 16, width: '100%', maxWidth: 800, alignSelf: 'center' },
-  eyebrow: { fontFamily: 'Manrope_700Bold',  color: c.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
-  heading: { fontFamily: 'Manrope_700Bold',  color: c.text, fontSize: 30, fontWeight: '700' },
-  notice: { backgroundColor: c.surfaceVariant, padding: 16, borderRadius: 12, gap: 10 },
-  noticeTitle: { fontFamily: 'Manrope_700Bold',  color: c.primary, fontSize: 13, fontWeight: '700' },
-  body: { fontFamily: 'Manrope_400Regular',  color: c.textMuted, fontSize: 14, lineHeight: 21 },
-  card: { padding: 16, backgroundColor: c.surface, borderRadius: 12, gap: 10 },
-  label: { fontFamily: 'Manrope_700Bold',  color: c.textMuted, fontSize: 13, fontWeight: '700' },
-  input: { fontFamily: 'Manrope_400Regular',  minHeight: 48, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 12, color: c.text, backgroundColor: c.surface, fontSize: 14 },
-  draft: { minHeight: 56, maxHeight: 130, textAlignVertical: 'top' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  button: { minHeight: 48, backgroundColor: c.primary, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 12, justifyContent: 'center' },
-  secondary: { backgroundColor: c.surfaceVariant }, buttonText: { fontFamily: 'Manrope_700Bold',  color: c.onPrimary, fontSize: 13, fontWeight: '700' },
-  secondaryText: { color: c.primary }, dim: { opacity: 0.45 },
-  empty: { fontFamily: 'Manrope_400Regular',  color: c.textMuted, fontSize: 15, paddingVertical: 20 },
-  message: { backgroundColor: c.surface, padding: 16, borderRadius: 14, gap: 8 },
-  userMessage: { backgroundColor: c.surfaceVariant, marginLeft: 24 }, statusMessage: { backgroundColor: c.surfaceVariant },
-  messageLabel: { fontFamily: 'Manrope_700Bold',  color: c.textMuted, fontSize: 12, fontWeight: '700' },
-  messageText: { fontFamily: 'Manrope_400Regular',  color: c.text, fontSize: 15, lineHeight: 23 },
-  code: { color: c.text, fontSize: 12, lineHeight: 19, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  review: { backgroundColor: c.surface, borderWidth: 2, borderColor: c.primary, padding: 16, borderRadius: 14, gap: 12 },
-  reviewTitle: { fontFamily: 'Manrope_700Bold',  color: c.primary, fontSize: 20, fontWeight: '700' }, field: { gap: 4 },
-  composer: { gap: 10, padding: 16, borderTopWidth: 1, borderColor: c.border, backgroundColor: c.surface, width: '100%', maxWidth: 800, alignSelf: 'center' },
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  status: { fontFamily: 'Manrope_400Regular',  color: c.textMuted, fontSize: 12, flexGrow: 1 }, error: { fontFamily: 'Manrope_400Regular',  color: c.error, fontSize: 14, lineHeight: 21 },
-  }), [c]);
-}
+function makeStyles(c: typeof Colors.light | typeof Colors.dark) { return StyleSheet.create({
+  screen: { flex: 1, backgroundColor: c.background }, content: { padding: 20, gap: 16, maxWidth: 760, width: '100%', alignSelf: 'center', paddingBottom: 24 }, intro: { gap: 12, paddingVertical: 12 }, heading: { fontFamily: 'Manrope_700Bold', fontSize: 26, color: c.text }, body: { fontFamily: 'Manrope_400Regular', fontSize: 15, lineHeight: 23, color: c.textMuted }, caption: { fontFamily: 'Manrope_400Regular', fontSize: 12, lineHeight: 18, color: c.textMuted, flexShrink: 1 }, trust: { flexDirection: 'row', alignItems: 'center', gap: 8 }, card: { borderRadius: 16, backgroundColor: c.surface, padding: 16, gap: 12 }, suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, button: { minHeight: 48, justifyContent: 'center', borderRadius: 24, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: c.primary }, secondary: { backgroundColor: c.surfaceVariant }, buttonText: { fontFamily: 'Manrope_600SemiBold', fontSize: 14, color: c.onPrimary }, disabled: { opacity: 0.4 }, message: { borderRadius: 16, backgroundColor: c.surface, padding: 16, gap: 8 }, user: { backgroundColor: c.surfaceVariant, marginLeft: 28 }, label: { fontFamily: 'Manrope_600SemiBold', fontSize: 13, color: c.textMuted }, messageText: { fontFamily: 'Manrope_400Regular', fontSize: 16, lineHeight: 24, color: c.text }, source: { color: c.primary, fontFamily: 'Manrope_600SemiBold', fontSize: 15, paddingVertical: 12 }, review: { padding: 16, gap: 16, borderWidth: 2, borderColor: c.primary, borderRadius: 16, backgroundColor: c.surface }, reviewHeading: { fontFamily: 'Manrope_700Bold', fontSize: 20, color: c.primary }, composer: { padding: 16, gap: 8, borderTopWidth: 1, borderColor: c.border, backgroundColor: c.surface }, status: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, inputRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' }, input: { flex: 1, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, minHeight: 52, maxHeight: 130, color: c.text, fontSize: 16 }, send: { minHeight: 52, width: 52, borderRadius: 26, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }, error: { color: c.error, fontSize: 15 },
+}); }

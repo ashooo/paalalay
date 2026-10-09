@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -16,12 +16,14 @@ import { insightsService } from '../service/insights.service';
 import type { GlucoseContext, GlucoseUnit } from '../contracts.proposal';
 
 interface QuickLogModalProps {
+  initialType?: 'blood_pressure' | 'blood_sugar';
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export const QuickLogModal: React.FC<QuickLogModalProps> = ({
+  initialType = 'blood_pressure',
   visible,
   onClose,
   onSuccess,
@@ -29,7 +31,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
   const isDark = useColorScheme() === 'dark';
   const colors = isDark ? linawTheme.colors.dark : linawTheme.colors.light;
 
-  const [activeTab, setActiveTab] = useState<'blood_pressure' | 'blood_sugar'>('blood_pressure');
+  const [activeTab, setActiveTab] = useState<'blood_pressure' | 'blood_sugar'>(initialType);
 
   // Blood Pressure fields
   const [systolic, setSystolic] = useState('');
@@ -39,20 +41,24 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
   // Blood Sugar fields
   const [glucoseValue, setGlucoseValue] = useState('');
   const [glucoseUnit, setGlucoseUnit] = useState<GlucoseUnit>('mg_dL');
-  const [glucoseContext, setGlucoseContext] = useState<GlucoseContext>('fasting');
+  const [glucoseContext, setGlucoseContext] = useState<GlucoseContext>('unknown');
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveLock = useRef(false);
 
   const resetForm = () => {
     setSystolic('');
     setDiastolic('');
     setPulse('');
     setGlucoseValue('');
+    setGlucoseContext('unknown');
     setError(null);
   };
 
   const handleSave = async () => {
+    if (saveLock.current) return;
+    saveLock.current = true;
     setError(null);
     setIsSubmitting(true);
 
@@ -60,9 +66,9 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
       const nowUtc = new Date().toISOString();
 
       if (activeTab === 'blood_pressure') {
-        const sysNum = parseInt(systolic.trim(), 10);
-        const diaNum = parseInt(diastolic.trim(), 10);
-        const pulseNum = pulse.trim() ? parseInt(pulse.trim(), 10) : null;
+        const sysNum = Number(systolic.trim());
+        const diaNum = Number(diastolic.trim());
+        const pulseNum = pulse.trim() ? Number(pulse.trim()) : null;
 
         if (isNaN(sysNum) || sysNum < 50 || sysNum > 260) {
           setError('Systolic must be a valid number between 50 and 260');
@@ -92,7 +98,7 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
           recorded_at: nowUtc,
         });
       } else {
-        const valNum = parseFloat(glucoseValue.trim());
+        const valNum = Number(glucoseValue.trim());
 
         if (isNaN(valNum) || valNum <= 0 || valNum > 600) {
           setError('Blood sugar must be a positive number');
@@ -125,6 +131,8 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({
       const msg = err instanceof Error ? err.message : 'Failed to record health reading';
       setError(msg);
       setIsSubmitting(false);
+    } finally {
+      saveLock.current = false;
     }
   };
 
