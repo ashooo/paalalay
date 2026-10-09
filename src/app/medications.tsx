@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { createMedication } from '@/services/api-client';
 import MedicineManagement from '@/features/medications/MedicineManagement';
+import MedicineSuggestions from '@/features/medicines/MedicineSuggestions';
 
 export default function MedicationsScreen() {
   const colorScheme = useColorScheme();
@@ -114,9 +115,10 @@ export default function MedicationsScreen() {
           placeholder="e.g. Amoxicillin, Losartan"
           placeholderTextColor={theme.textMuted}
           value={medName}
-          onChangeText={setUserEditedName}
+          onChangeText={setUserEditedName} autoCorrect={false} accessibilityLabel="New medicine name"
         />
 
+        <MedicineSuggestions value={medName} onSelect={setUserEditedName} disabled={isSaving} />
         <Text style={[styles.label, { color: theme.textMuted }]}>Strength *</Text>
         <TextInput
           style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}

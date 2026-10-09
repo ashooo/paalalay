@@ -1,3 +1,4 @@
+import MedicineSuggestions from '../medicines/MedicineSuggestions';
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
@@ -98,7 +99,7 @@ export default function MedicineManagement({ revision }: { revision: number }) {
     </View>)}
     {selected && <View style={[styles.card, { borderColor: c.primary, backgroundColor: c.surface }]}>
       <Text style={[styles.subtitle, { color: c.text }]}>Manage {selected.name}</Text>
-      {input('Medicine name', name, setName)}{input('Strength', strength, setStrength)}
+      {input('Medicine name', name, setName)}<MedicineSuggestions value={name} onSelect={setName} disabled={busy} />{input('Strength', strength, setStrength)}
       {input('Prescription instructions (including food instructions)', instructions, setInstructions)}
       <Text style={[styles.body, { color: c.textMuted }]}>Copy the prescribed instructions. The app does not determine doses or food requirements.</Text>
       {<ManagementButton label={'Save medicine details'} onPress={() => void run(saveDetails)} secondary={false} busy={busy} colors={c}/>}

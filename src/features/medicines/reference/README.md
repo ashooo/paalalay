@@ -1,0 +1,3 @@
+The supplied PNF_EML_2022_medicine_names.csv is retained unchanged. Its headers are transposed relative to its rows: column one is the PDF page, column two is the listed medicine name. medicine-names.json contains all 659 rows with corrected field names.
+
+This 2022 name reference supports local suggestions, including reviewed OCR corrections. It does not contain prescribing, dosing, food, or missed-dose guidance, and is not evidence that a medicine is appropriate for a patient. Only reference footnote flags are removed from suggestions. Names are never silently replaced; users choose a suggestion and check their label. Saving still requires the user's action. No database import or seed is performed.
