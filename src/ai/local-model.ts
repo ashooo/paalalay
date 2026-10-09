@@ -3,6 +3,7 @@ import type { LlamaContext } from 'llama.rn';
 import { getModelTools, type ToolName } from '../contracts/tools';
 import type { ConversationMessage, LocalModelRuntime } from './local-model.types';
 import { MODEL_CONTEXT_TOKENS, MODEL_OUTPUT_TOKENS } from './model-config';
+import { createSystemMessage } from './system-prompt';
 
 /** Lazy native import keeps tool-only testing available when the native module is absent. */
 export function createLocalModelRuntime(toolNames?: readonly ToolName[]): LocalModelRuntime {
@@ -76,7 +77,7 @@ export function createLocalModelRuntime(toolNames?: readonly ToolName[]): LocalM
     async complete(prompt, withTools) {
       if (!prompt.trim()) throw new Error('Enter a test prompt.');
       const messages: ConversationMessage[] = [
-        { role: 'system', content: 'You are Paalalay, an offline health-record assistant. Use only explicitly supplied values. Ask for missing medicine names, strengths, units, dates, or times. Never diagnose or recommend doses. Propose at most one tool call. A proposal is not a saved action; user confirmation is required for every write.' },
+        createSystemMessage('test'),
         { role: 'user', content: prompt.trim() },
       ];
       return runtime.generate(messages, withTools);

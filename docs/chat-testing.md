@@ -31,10 +31,20 @@ after approval inserted exactly one row and explained the real returned log ID.
 Cancellation left the row count unchanged. The successful prompt explicitly
 supplied 120/80, pulse 60, and the synthetic timestamp `2023-10-05T12:00:00Z`.
 
-Known model limitation: the short BP sample also proposed an unsupplied pulse
-and historical timestamp. That proposal was cancelled. Schema validation checks
-types and ranges, rather than proving values came from the user. Review all fields
-and cancel invented values; this model has not passed the no-guessing criterion.
+The shared system prompt now distinguishes required and optional fields: missing
+required values need clarification; unsupplied optional values must be omitted.
+For BP, the service assigns the current time when `recorded_at` is omitted.
+Numeric examples are deliberately excluded because this GGUF copied an example
+reading when measurements were missing during prompt testing.
+With the final prompt on Android in mock mode, "Record my blood pressure."
+asked for systolic and diastolic readings without a tool call. Replying "120/80"
+produced a review containing only `systolic: 120` and `diastolic: 80`, omitting
+pulse, timestamp, and notes. This proposal was not confirmed or saved.
+
+Schema validation checks types and ranges, rather than proving values came from
+the user. Prompt instructions do not guarantee factual arguments; review all
+fields and cancel invented values. Earlier prompt testing produced an unsupplied
+pulse and historical timestamp; that proposal was cancelled.
 Empty `<think>` markers can also appear in its displayed final response despite
 thinking being disabled. Chat tool selection remains model-dependent.
 
@@ -77,7 +87,8 @@ return `NOT_FOUND`. Tool-free explanations omit schemas to conserve context.
 The native context is 8,192 tokens, shared with the controller's input budget;
 256 tokens are reserved for each answer and 64 for a safety margin. Older complete
 turns are trimmed when necessary, preserving the active request and tool exchange.
-This chat does not connect to SQLite or persist health records.
+Mock mode does not persist health records; explicit database setup connects the
+two supported tools to SQLite.
 
 ## Browser UI verification
 
