@@ -16,6 +16,163 @@ if (existsSync(schemaFile)) {
   db.exec(sql);
 }
 
+// Ensure Curated Doctors Seed Data
+const countRow = db.prepare('SELECT COUNT(*) as count FROM doctors;').get();
+if (!countRow || countRow.count === 0) {
+  const seedDocs = [
+    {
+      id: 'doc_phc_cardio_01',
+      doctor_name: 'Dr. Ramon Reyes, MD, FPCP, FPCC',
+      specialty: 'cardiology',
+      facility_name: 'Philippine Heart Center',
+      address: 'East Avenue, Diliman',
+      city: 'Quezon City',
+      latitude: 14.6465,
+      longitude: 121.0505,
+      phone: '+63 2 8925 2401',
+      source_url: 'https://phc.gov.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_slmc_cardio_02',
+      doctor_name: 'Dr. Maria Elena Fernandez, MD',
+      specialty: 'cardiology',
+      facility_name: "St. Luke's Medical Center - Global City",
+      address: '32nd St. corner 5th Ave, Bonifacio Global City',
+      city: 'Taguig',
+      latitude: 14.5539,
+      longitude: 121.0478,
+      phone: '+63 2 8789 7700',
+      source_url: 'https://stlukes.com.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_pgh_endo_01',
+      doctor_name: 'Dr. Juan Carlos Dizon, MD, FPCP',
+      specialty: 'endocrinology',
+      facility_name: 'Philippine General Hospital (PGH)',
+      address: 'Taft Avenue, Ermita',
+      city: 'Manila',
+      latitude: 14.5794,
+      longitude: 120.9886,
+      phone: '+63 2 8554 8400',
+      source_url: 'https://pgh.gov.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_nkti_nephro_01',
+      doctor_name: 'Dr. Angela Soriano, MD',
+      specialty: 'nephrology',
+      facility_name: 'National Kidney and Transplant Institute',
+      address: 'East Avenue, Diliman',
+      city: 'Quezon City',
+      latitude: 14.6471,
+      longitude: 121.0489,
+      phone: '+63 2 8981 0300',
+      source_url: 'https://nkti.gov.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_lung_pulmo_01',
+      doctor_name: 'Dr. Antonio Bautista, MD, FPCP, FPCCP',
+      specialty: 'pulmonology',
+      facility_name: 'Lung Center of the Philippines',
+      address: 'Quezon Avenue, Diliman',
+      city: 'Quezon City',
+      latitude: 14.6486,
+      longitude: 121.0447,
+      phone: '+63 2 8924 6101',
+      source_url: 'https://lcp.gov.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_mmc_genmed_01',
+      doctor_name: 'Dr. Patricia Santos, MD',
+      specialty: 'general_medicine',
+      facility_name: 'Makati Medical Center',
+      address: '2 Amorsolo Street, Legaspi Village',
+      city: 'Makati',
+      latitude: 14.5591,
+      longitude: 121.0147,
+      phone: '+63 2 8888 8999',
+      source_url: 'https://makatimed.net.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_chonghua_cardio_01',
+      doctor_name: 'Dr. Vicente Lim, MD, FPCP',
+      specialty: 'cardiology',
+      facility_name: 'Chong Hua Hospital',
+      address: 'Don Mariano Cui Street, Fuente Osmeña',
+      city: 'Cebu City',
+      latitude: 10.3129,
+      longitude: 123.8924,
+      phone: '+63 32 255 8000',
+      source_url: 'https://chonghua.com.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_spmc_geriatrics_01',
+      doctor_name: 'Dr. Teresa Morales, MD',
+      specialty: 'geriatrics',
+      facility_name: 'Southern Philippines Medical Center',
+      address: 'J.P. Laurel Avenue, Bajada',
+      city: 'Davao City',
+      latitude: 7.0917,
+      longitude: 125.6175,
+      phone: '+63 82 227 2731',
+      source_url: 'https://spmc.doh.gov.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_cardinal_neuro_01',
+      doctor_name: 'Dr. Roberto Cruz, MD, FPNA',
+      specialty: 'neurology',
+      facility_name: 'Cardinal Santos Medical Center',
+      address: '10 Wilson Street, Greenhills West',
+      city: 'San Juan',
+      latitude: 14.5989,
+      longitude: 121.0428,
+      phone: '+63 2 8727 0001',
+      source_url: 'https://cardinalsantos.com.ph',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+    {
+      id: 'doc_tmc_gastro_01',
+      doctor_name: 'Dr. Leah Garcia, MD, FPCP, PSGDE',
+      specialty: 'gastroenterology',
+      facility_name: 'The Medical City',
+      address: 'Ortigas Avenue, Pasig',
+      city: 'Pasig',
+      latitude: 14.5894,
+      longitude: 121.0694,
+      phone: '+63 2 8988 1000',
+      source_url: 'https://themedicalcity.com',
+      verified_at: '2026-10-01T00:00:00.000Z',
+    },
+  ];
+
+  const stmt = db.prepare(`
+    INSERT OR IGNORE INTO doctors (id, doctor_name, specialty, facility_name, address, city, latitude, longitude, phone, source_url, verified_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  `);
+  for (const doc of seedDocs) {
+    stmt.run(
+      doc.id,
+      doc.doctor_name,
+      doc.specialty,
+      doc.facility_name,
+      doc.address,
+      doc.city,
+      doc.latitude,
+      doc.longitude,
+      doc.phone,
+      doc.source_url,
+      doc.verified_at
+    );
+  }
+}
+
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -116,10 +273,24 @@ const server = http.createServer(async (req, res) => {
     const dayOfWeek = new Date(`${targetDate}T00:00:00`).getDay();
 
     const schedules = db.prepare(`
-      SELECT ms.* FROM medication_schedules ms
+      SELECT ms.*, m.name as medication_name, m.strength_text, m.dosage_form
+      FROM medication_schedules ms
       JOIN medications m ON ms.medication_id = m.id
       WHERE m.is_active = 1 AND ms.enabled = 1;
     `).all();
+
+    const startOfDayUtc = `${targetDate}T00:00:00.000Z`;
+    const endOfDayUtc = `${targetDate}T23:59:59.999Z`;
+    const intakes = db.prepare(
+      'SELECT * FROM medication_intakes WHERE scheduled_for >= ? AND scheduled_for <= ?;'
+    ).all(startOfDayUtc, endOfDayUtc);
+
+    const intakeMap = new Map();
+    for (const intake of intakes) {
+      if (intake.schedule_id) {
+        intakeMap.set(intake.schedule_id, intake.status);
+      }
+    }
 
     const items = [];
     for (const s of schedules) {
@@ -128,11 +299,15 @@ const server = http.createServer(async (req, res) => {
         days = JSON.parse(s.days_of_week);
       } catch {}
       if (!days.includes(dayOfWeek)) continue;
+      const status = intakeMap.get(s.id) || 'pending';
       items.push({
         medication_id: s.medication_id,
+        medication_name: s.medication_name,
+        strength_text: s.strength_text,
+        dosage_form: s.dosage_form,
         schedule_id: s.id,
         time_local: s.time_local,
-        status: 'pending',
+        status,
       });
     }
 
@@ -373,6 +548,137 @@ const server = http.createServer(async (req, res) => {
             notes: r.notes,
           },
         })),
+      },
+    });
+  }
+
+  // 13. GET /api/insights/summary or /api/health-summary
+  if (method === 'GET' && (pathname === '/api/insights/summary' || pathname === '/api/health-summary')) {
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const logType = url.searchParams.get('log_type');
+
+    if (!from || !to) {
+      return jsonResponse(res, 400, {
+        status: 'error',
+        error: { code: 'VALIDATION_ERROR', message: 'from and to date parameters (YYYY-MM-DD) are required' },
+      });
+    }
+
+    const fromUtc = `${from}T00:00:00.000Z`;
+    const toUtc = `${to}T23:59:59.999Z`;
+
+    const countClauses = ['recorded_at >= ?', 'recorded_at <= ?'];
+    const countParams = [fromUtc, toUtc];
+    if (logType) {
+      countClauses.push('log_type = ?');
+      countParams.push(logType);
+    }
+
+    const countRows = db.prepare(`
+      SELECT log_type, COUNT(*) as count
+      FROM health_logs
+      WHERE ${countClauses.join(' AND ')}
+      GROUP BY log_type;
+    `).all(...countParams);
+
+    const counts = { blood_pressure: 0, blood_sugar: 0, temperature: 0, weight: 0, symptom: 0, total: 0 };
+    for (const r of countRows) {
+      if (r.log_type in counts) {
+        counts[r.log_type] = Number(r.count);
+        counts.total += Number(r.count);
+      }
+    }
+
+    const types = logType ? [logType] : ['blood_pressure', 'blood_sugar', 'temperature', 'weight', 'symptom'];
+    const latest_readings = { blood_pressure: null, blood_sugar: null, temperature: null, weight: null, symptom: null };
+
+    for (const type of types) {
+      const row = db.prepare(`
+        SELECT * FROM health_logs
+        WHERE log_type = ? AND recorded_at >= ? AND recorded_at <= ?
+        ORDER BY recorded_at DESC LIMIT 1;
+      `).get(type, fromUtc, toUtc);
+
+      if (row) {
+        if (type === 'blood_pressure') {
+          latest_readings.blood_pressure = { systolic: row.systolic, diastolic: row.diastolic, pulse_bpm: row.pulse_bpm, recorded_at: row.recorded_at };
+        } else if (type === 'blood_sugar') {
+          latest_readings.blood_sugar = { glucose_value: row.glucose_value, glucose_unit: row.glucose_unit || 'mg_dL', glucose_context: row.glucose_context, recorded_at: row.recorded_at };
+        } else if (type === 'temperature') {
+          latest_readings.temperature = { temperature_c: row.temperature_c, recorded_at: row.recorded_at };
+        } else if (type === 'weight') {
+          latest_readings.weight = { weight_kg: row.weight_kg, recorded_at: row.recorded_at };
+        } else if (type === 'symptom') {
+          latest_readings.symptom = { symptom_name: row.symptom_name, symptom_severity: row.symptom_severity, recorded_at: row.recorded_at };
+        }
+      }
+    }
+
+    const intakes = db.prepare(`SELECT status FROM medication_intakes WHERE scheduled_for >= ? AND scheduled_for <= ?;`).all(fromUtc, toUtc);
+    let takenCount = 0;
+    let skippedCount = 0;
+    for (const intake of intakes) {
+      if (intake.status === 'taken') takenCount++;
+      if (intake.status === 'skipped') skippedCount++;
+    }
+    const scheduledCount = intakes.length;
+    const adherenceRate = scheduledCount > 0 ? Number((takenCount / scheduledCount).toFixed(3)) : 1.0;
+
+    return jsonResponse(res, 200, {
+      status: 'success',
+      data: {
+        counts,
+        latest_readings,
+        medication_adherence: {
+          scheduled_count: scheduledCount,
+          taken_count: takenCount,
+          skipped_count: skippedCount,
+          adherence_rate: adherenceRate,
+        },
+      },
+    });
+  }
+
+  // 14. GET /api/specialists or /api/doctors
+  if (method === 'GET' && (pathname === '/api/specialists' || pathname === '/api/doctors')) {
+    const specialty = url.searchParams.get('specialty');
+    const city = url.searchParams.get('city');
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '30', 10), 1), 50);
+
+    if (pathname === '/api/specialists' && (!specialty || !specialty.trim())) {
+      return jsonResponse(res, 400, {
+        status: 'error',
+        error: { code: 'VALIDATION_ERROR', message: 'specialty parameter is required' },
+      });
+    }
+
+    const conditions = [];
+    const params = [];
+    if (specialty && specialty.trim()) {
+      conditions.push('specialty LIKE ?');
+      params.push(`%${specialty.trim()}%`);
+    }
+    if (city && city.trim()) {
+      conditions.push('city LIKE ?');
+      params.push(`%${city.trim()}%`);
+    }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    params.push(limit);
+
+    const rows = db.prepare(`
+      SELECT id, doctor_name, specialty, facility_name, address, city, latitude, longitude, phone, source_url, verified_at
+      FROM doctors
+      ${whereClause}
+      ORDER BY city ASC, facility_name ASC
+      LIMIT ?;
+    `).all(...params);
+
+    return jsonResponse(res, 200, {
+      status: 'success',
+      data: {
+        results: rows,
+        doctors: rows,
       },
     });
   }
