@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '@/constants/theme';
 import { logHealthMeasurement } from '@/services/api-client';
+import HealthHistory from '@/features/health/HealthHistory';
 
 type LogTab = 'blood_pressure' | 'blood_sugar' | 'temperature' | 'weight' | 'symptom';
 
@@ -29,12 +30,15 @@ export default function HealthLogsScreen() {
   const [symptom, setSymptom] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [revision, setRevision] = useState(0);
+  const saveLock = useRef(false);
 
   async function saveReading() {
-    if (saving) return;
+    if (saveLock.current) return;
     const required = activeTab === 'blood_pressure' ? [systolic, diastolic]
       : [activeTab === 'blood_sugar' ? glucose : activeTab === 'temperature' ? temperature : activeTab === 'weight' ? weight : symptom];
     if (required.some(value => !value.trim())) { setSaveMessage('Enter the required reading before saving.'); return; }
+    saveLock.current = true;
     setSaving(true);
     try {
       const result = await logHealthMeasurement({
@@ -46,8 +50,9 @@ export default function HealthLogsScreen() {
         ...(activeTab === 'symptom' ? { symptom_name: symptom.trim() } : {}),
       });
       setSaveMessage(result.status === 'success' ? 'Reading saved on this device.' : result.error.message);
+      if (result.status === 'success') setRevision(value => value + 1);
     } catch { setSaveMessage('Could not save this reading.'); }
-    finally { setSaving(false); }
+    finally { saveLock.current = false; setSaving(false); }
   }
 
   return (
@@ -260,7 +265,7 @@ export default function HealthLogsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Frozen Tool Contracts Checklist */}
+      <HealthHistory revision={revision} />
 
     </ScrollView>
   );
