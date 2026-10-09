@@ -6,6 +6,7 @@ import { createAgentController } from '@/ai/agent-controller';
 import { createLocalModelRuntime } from '@/ai/local-model';
 import { createMockToolHandlers } from '@/ai/mock-handlers';
 import { BottomTabInset } from '@/constants/theme';
+import { createDatabaseToolHandlers, prepareChatDatabase, testDatabasePersistence } from '@/db/chat-storage';
 import { createScriptedPreview } from './scripted-preview';
 
 function Button({ title, disabled, secondary, onPress }: {
@@ -20,14 +21,21 @@ function Button({ title, disabled, secondary, onPress }: {
 export default function ChatScreen() {
   const [preview, setPreview] = useState(false);
   const [revision, setRevision] = useState(0);
-  return <ChatSession key={`${preview}:${revision}`} preview={preview}
+  const [database, setDatabase] = useState(false);
+  const [databaseReport, setDatabaseReport] = useState('Database not connected. Setup runs only when requested.');
+  return <ChatSession key={`${preview}:${revision}:${database}`} preview={preview} database={database} databaseReport={databaseReport}
+    databaseReady={(report) => { setDatabaseReport(report); setDatabase(true); }} reportDatabase={setDatabaseReport}
     switchPreview={() => setPreview(!preview)} restartSession={() => setRevision((value) => value + 1)} />;
 }
 
-function ChatSession({ preview, switchPreview, restartSession }: { preview: boolean; switchPreview: () => void; restartSession: () => void }) {
+function ChatSession({ preview, database, databaseReport, databaseReady, reportDatabase, switchPreview, restartSession }: {
+  preview: boolean; database: boolean; databaseReport: string; databaseReady: (report: string) => void;
+  reportDatabase: (report: string) => void; switchPreview: () => void; restartSession: () => void;
+}) {
+  const persistent = database && !preview;
   const [session] = useState(() => {
     const runtime = preview ? createScriptedPreview() : createLocalModelRuntime(['list_medications', 'log_blood_pressure']);
-    return { runtime, agent: createAgentController(runtime, createMockToolHandlers()) };
+    return { runtime, agent: createAgentController(runtime, persistent ? createDatabaseToolHandlers() : createMockToolHandlers(), { persistentTools: persistent }) };
   });
   const snapshot = useSyncExternalStore(session.agent.subscribe, session.agent.getSnapshot, session.agent.getSnapshot);
   const [uri, setUri] = useState('file:///data/user/0/com.paalalay.app/files/models/Qwen3-0.6B-Q8_0.gguf');
@@ -69,7 +77,7 @@ function ChatSession({ preview, switchPreview, restartSession }: { preview: bool
     try {
       setModelStatus('Loading the device-local model on CPU…');
       await session.runtime.load(uri);
-      if (mounted.current) { setLoaded(true); setModelStatus('Local model ready · synthetic services connected'); }
+      if (mounted.current) { setLoaded(true); setModelStatus(persistent ? 'Local model ready · SQLite services connected' : 'Local model ready · synthetic services connected'); }
     } catch {
       if (mounted.current) {
         setLoaded(false);
@@ -115,7 +123,7 @@ function ChatSession({ preview, switchPreview, restartSession }: { preview: bool
   }
 
   const status = {
-    idle: 'Ready', generating: 'Thinking locally…', executing: 'Running mock handler…',
+    idle: 'Ready', generating: 'Generating locally…', executing: persistent ? 'Running SQLite handler…' : 'Running mock handler…',
     awaiting_confirmation: 'Waiting for your review', stopping: 'Stopping; waiting for the current operation…',
   }[snapshot.phase];
 
@@ -126,13 +134,27 @@ function ChatSession({ preview, switchPreview, restartSession }: { preview: bool
         <Text style={styles.eyebrow}>PAALALAY / DEVELOPMENT</Text>
         <Text style={styles.heading}>Chat</Text>
         <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>{preview ? 'SCRIPTED UI PREVIEW · NO MODEL INFERENCE' : 'LOCAL MODEL · MOCK SERVICES'}</Text>
-          <Text style={styles.body}>History stays in memory. Only medication listing and blood-pressure recording have synthetic handlers. No health records are saved.</Text>
+          <Text style={styles.noticeTitle}>{preview ? 'SCRIPTED UI PREVIEW · NO MODEL INFERENCE' : persistent ? 'LOCAL MODEL · SQLITE SERVICES' : 'LOCAL MODEL · MOCK SERVICES'}</Text>
+          <Text style={styles.body}>{persistent ? 'Chat history stays in memory. Medication listing reads SQLite; confirmed blood-pressure actions save locally. Use synthetic test values.' : 'History stays in memory. Only medication listing and blood-pressure recording have synthetic handlers. No health records are saved.'}</Text>
           {Platform.OS === 'web' && <>
             <Text style={styles.body}>Actual llama.rn inference needs an Android or iOS development build and a device-local GGUF. The browser has no native model.</Text>
             <Button title={preview ? 'Exit scripted preview' : 'Use scripted UI preview'} disabled={locked} secondary onPress={switchPreview} />
           </>}
         </View>
+
+        {Platform.OS !== 'web' && !preview && <View style={styles.card}>
+          <Text style={styles.label}>Development database</Text>
+          <Text style={styles.body}>{databaseReport}</Text>
+          <Button title="Set up database and connect tools" disabled={locked || database} onPress={() => void control(async () => {
+            const result = await prepareChatDatabase();
+            databaseReady(`SQLite ready: ${result.path}. Applied migrations: ${result.migrations.map((item) => item.version).join(', ')}.`);
+          })} />
+          <Button title="Save synthetic BP and verify persistence" secondary disabled={locked || !database} onPress={() => void control(async () => {
+            const row = await testDatabasePersistence();
+            reportDatabase(`Verified after closing and reopening SQLite: ${row.systolic}/${row.diastolic}, record ${row.id}. This synthetic record remains saved.`);
+          })} />
+          <Text style={styles.body}>Setup switches this session to database tools and unloads the model. Load it again afterward. App startup never runs migrations.</Text>
+        </View>}
 
         {!preview && <View style={styles.card}>
           <Text style={styles.label}>Device model URI</Text>
@@ -159,18 +181,18 @@ function ChatSession({ preview, switchPreview, restartSession }: { preview: bool
 
         {!snapshot.entries.length && <Text style={styles.empty}>{preview ? 'Choose a sample to exercise the conversation loop. Each write pauses here for your confirmation.' : 'Load your model to start a conversation. Each write pauses here for your confirmation.'}</Text>}
         {snapshot.entries.map((item) => <View key={item.id} style={[styles.message, item.role === 'user' && styles.userMessage, item.role === 'notice' && styles.statusMessage]}>
-          <Text style={styles.messageLabel}>{item.role === 'tool' ? `Mock tool result · ${item.toolName}` : item.role === 'notice' ? 'Action status' : item.role === 'user' ? 'You' : preview ? 'Scripted assistant' : 'Local assistant'}</Text>
+          <Text style={styles.messageLabel}>{item.role === 'tool' ? `${persistent ? 'SQLite' : 'Mock'} tool result · ${item.toolName}` : item.role === 'notice' ? 'Action status' : item.role === 'user' ? 'You' : preview ? 'Scripted assistant' : 'Local assistant'}</Text>
           <Text selectable style={item.role === 'tool' ? styles.code : styles.messageText}>{item.content}</Text>
         </View>)}
 
         {snapshot.review && <View style={styles.review}>
           <Text style={styles.reviewTitle}>{snapshot.review.title}</Text>
-          <Text style={styles.body}>Review every value. Confirm runs a mock handler; no record is saved.</Text>
+          <Text style={styles.body}>{persistent ? 'Review every value. Confirm saves this blood-pressure record to SQLite on this device.' : 'Review every value. Confirm runs a mock handler; no record is saved.'}</Text>
           {snapshot.review.fields.map((field) => <View key={field.label} style={styles.field}>
             <Text style={styles.label}>{field.label}</Text><Text selectable style={styles.messageText}>{field.value}</Text>
           </View>)}
           <View style={styles.actions}>
-            <Button title="Confirm mock action" disabled={actionBusy} onPress={() => resolveReview(true)} />
+            <Button title={persistent ? 'Confirm and save' : 'Confirm mock action'} disabled={actionBusy} onPress={() => resolveReview(true)} />
             <Button title="Cancel action" secondary disabled={actionBusy} onPress={() => resolveReview(false)} />
           </View>
         </View>}

@@ -32,6 +32,19 @@ test('agent ordinary answers and later turns retain conversation history', async
   assert.deepEqual(requests[1].messages.map((m) => m.role), ['system', 'user', 'assistant', 'user']);
 });
 
+test('persistent tools use instructions that acknowledge successful database saves', async () => {
+  let instructions;
+  const agent = createAgentController({
+    countTokens: async () => 100,
+    stop: async () => {},
+    generate: async (messages) => { instructions = messages[0].content; return answer('Hello'); },
+  }, {}, { persistentTools: true });
+  await agent.send('Hello');
+  assert.match(instructions, /local SQLite database/);
+  assert.doesNotMatch(instructions, /synthetic mocks/);
+  assert.match(instructions, /only after a successful tool result/);
+});
+
 test('agent reads execute immediately and feed a matched result into the next model turn', async () => {
   const { agent, requests } = setup([call('list_medications', '{}'), answer()], {
     list_medications: async () => ({ status: 'success', data: { medications: [] } }),

@@ -7,6 +7,23 @@ The model file remains separate from the app package.
 
 ## Native model test
 
+### Explicit SQLite setup and save test
+
+On Android, select **Set up database and connect tools** in Chat. This applies
+the migration from `main` only on that explicit action, then switches the chat
+to real SQLite handlers. It unloads the model; load it again after setup.
+Startup, Reload, and New chat never apply migrations automatically.
+
+Select **Save synthetic BP and verify persistence** to insert one labelled
+120/80 test record and read it after closing and reopening the database. The
+record remains saved, and its ID is displayed. Then test **BP 120/80 sample**:
+**Confirm and save** writes a real `health_logs` row; cancellation writes none.
+Medication listing reads real rows, while other tools remain unavailable.
+Chat history is still held only in memory. Browser preview continues using mocks.
+
+The save test uses the app's `paalalay.db`, rather than the README's desktop
+SQLite command. For inspection, use Expo's SQLite DevTools inspector.
+
 The GGUF in `assets/models/Qwen3-0.6B-Q8_0.gguf` must be copied onto the device
 separately. For a connected device with a debuggable `com.paalalay.app` installed,
 run these commands from the project root (they copy only the model file):

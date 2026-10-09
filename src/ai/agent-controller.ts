@@ -22,7 +22,11 @@ function canonical(value: unknown): string {
 }
 
 /** Model and services are injected; no React, native modules, storage, or network access. */
-export function createAgentController(model: ConversationModel, handlers: ToolHandlers) {
+export function createAgentController(model: ConversationModel, handlers: ToolHandlers, options?: { persistentTools?: boolean }) {
+  const instructions = options?.persistentTools ? {
+    ...systemMessage,
+    content: systemMessage.content.replace('All connected services are synthetic mocks: success does not save any record. Never say data was saved.', 'Connected tools use the local SQLite database. Say data was saved only after a successful tool result. Writes require explicit user confirmation.'),
+  } : systemMessage;
   const dispatcher = createToolDispatcher(handlers);
   const listeners = new Set<() => void>();
   const history: ConversationMessage[][] = [];
@@ -60,7 +64,7 @@ export function createAgentController(model: ConversationModel, handlers: ToolHa
   async function context(withTools: boolean) {
     let start = 0;
     while (true) {
-      const messages = [systemMessage, ...history.slice(start).flat()];
+      const messages = [instructions, ...history.slice(start).flat()];
       // Match native allocation, reserving output tokens and a safety margin.
       const count = await model.countTokens(messages, withTools);
       if (stopped || closed) return undefined;
