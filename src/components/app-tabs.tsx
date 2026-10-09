@@ -28,6 +28,12 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
       {__DEV__ && (
+        <NativeTabs.Trigger name="chat">
+          <NativeTabs.Trigger.Label>Chat</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon src={require('@/assets/images/tabIcons/home.png')} renderingMode="template" />
+        </NativeTabs.Trigger>
+      )}
+      {__DEV__ && (
         <NativeTabs.Trigger name="dev-tools">
           <NativeTabs.Trigger.Label>Test bench</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon

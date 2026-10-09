@@ -28,6 +28,11 @@ export default function AppTabs() {
             <TabButton>Explore</TabButton>
           </TabTrigger>
           {__DEV__ && (
+            <TabTrigger name="chat" href="/chat" asChild>
+              <TabButton>Chat</TabButton>
+            </TabTrigger>
+          )}
+          {__DEV__ && (
             <TabTrigger name="dev-tools" href="/dev-tools" asChild>
               <TabButton>Test bench</TabButton>
             </TabTrigger>

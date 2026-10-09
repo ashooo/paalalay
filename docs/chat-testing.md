@@ -1,0 +1,72 @@
+# Development chat and conversation loop
+
+Start `npx expo start --dev-client`, open the existing Android development build,
+and select **Chat**. This route and tab are development-only. Chat history is held
+in memory and disappears when the session unmounts or **New chat** is selected.
+The model file remains separate from the app package.
+
+## Native model test
+
+Provision the GGUF using the instructions in `docs/test-bench.md`, then enter its
+actual device-local file URI and select **Load model**. The example URI assumes
+`com.paalalay.app` on Android; it must match the installed app and file location.
+
+1. Send **List medications sample**. The model should choose `list_medications`,
+   receive the synthetic empty list, and explain the result without confirmation.
+2. Send **BP 120/80 sample**. The model should propose `log_blood_pressure` and the
+   chat must pause at a review card showing both measured values and units.
+3. Select **Confirm mock action**. A synthetic tool response appears, followed
+   by a model-generated explanation. The assistant must identify this as a mock
+   action, rather than claim a record was saved.
+4. Repeat and select **Cancel action**. The handler must not run; the model gets
+   the cancellation result and can only explain it, with tools disabled.
+5. Send **Missing BP sample**. Expect a clarification rather than guessed values.
+6. Select **Stop** during generation or review. A pending write is cancelled. An
+   already executing handler cannot be undone; its actual result is retained.
+7. **New chat** clears transcript memory while retaining the loaded model.
+   **Unload model** releases the native context and clears that chat session.
+
+Native tool selection depends on the GGUF and its chat template. The Android
+device test is required before claiming this works with the installed model.
+There is no cloud inference fallback. Other public tools currently return
+`NOT_FOUND`; only medication listing and blood-pressure logging have mock handlers.
+This chat does not connect to SQLite or persist health records.
+
+## Browser UI verification
+
+Run `npx expo start --web`, select **Chat**, and verify that native inference is
+unavailable. Select **Use scripted UI preview** to exercise the actual controller
+and confirmation UI with an explicitly labeled fake model. The preview recognizes
+the three sample messages above; it is not a language model or an automatic
+fallback. Confirm, cancel, missing inputs, immediate reads, reset, and disabled
+controls can be checked without native modules. **Exit scripted preview** ends
+and clears the preview session.
+
+## Controller and runtime integration
+
+`createAgentController(model, handlers)` receives a model implementing `generate`,
+`countTokens`, and `stop`, plus the existing typed `ToolHandlers`. It exposes
+`send`, `confirm`, `cancel`, `stop`, `reset`, `dispose`, `subscribe`, and
+`getSnapshot`. The snapshot contains transcript entries, phase, completion count,
+and an optional review card. Confirm/cancel are trusted UI operations only.
+
+The native model adapter preserves tool-call IDs and forwards assistant proposals
+and matching `tool` responses in the next completion. Missing or reused IDs get
+unique session-local IDs. Single-prompt test-bench calls still use `complete`.
+
+Each user message permits at most five completions, including resumed generation
+after confirmation. The fifth is tool-free. Errors and cancellations allow only
+one tool-free explanation. Multiple calls are rejected; repeated successful writes
+with identical validated arguments cannot execute twice in the same user turn.
+Failed writes never retry automatically.
+
+Before inference the runtime counts the fully formatted prompt, including tool
+schemas. Older complete turns are removed from the model input until it fits the
+3776-token input budget (4096 context minus 256 output and 64 reserve). The system
+prompt and current user/tool exchange are never truncated. Oversized active
+requests stop before another tool executes. Trimming model input does not erase
+the displayed transcript.
+
+Run `npm run test:agent`, `npx tsc --noEmit`, and `npm run lint`. Controller tests
+inject fake model outputs and services; adapter tests fake the native context.
+They validate control flow, not actual model quality or Android inference.
