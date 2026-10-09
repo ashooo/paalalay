@@ -3,6 +3,8 @@ import { useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { fetchHealthHistory } from '@/services/api-client';
 import { Colors } from '@/constants/theme';
+import { EmptyCollection } from '@/components/care-ui';
+import { ActivityFeedback } from '@/components/activity-feedback';
 
 export interface HealthHistoryRow { id: string; log_type: string; recorded_at: string; values?: Record<string, unknown>; [key: string]: unknown }
 export function readingLabel(row: HealthHistoryRow) {
@@ -16,28 +18,33 @@ export function readingLabel(row: HealthHistoryRow) {
     default: return 'Saved reading';
   }
 }
-export default function HealthHistory({ revision }: { revision: number }) {
+export default function HealthHistory({ revision, onAdd, onChat }: { revision: number; onAdd?: () => void; onChat?: () => void }) {
   const c = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   const [rows, setRows] = useState<HealthHistoryRow[]>([]);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [limit, setLimit] = useState(20);
   const [refresh, setRefresh] = useState(0);
   const request = useRef(0);
   useFocusEffect(useCallback(() => {
     const id = ++request.current;
-    setMessage('Loading saved readings…');
+    setLoading(true); setFailed(false); setMessage('');
     void fetchHealthHistory({ limit }).then(result => {
       if (request.current !== id) return;
-      if (result.status === 'success') { setRows(result.data.logs); setMessage(result.data.logs.length ? '' : 'No readings saved yet.'); }
-      else { setRows([]); setMessage(result.error.message); }
-    }).catch(() => { if (request.current === id) { setRows([]); setMessage('Could not load saved readings.'); } });
+      setLoading(false);
+      if (result.status === 'success') setRows(result.data.logs);
+      else { setFailed(true); setMessage('Your readings could not be loaded. Tap Refresh to try again.'); }
+    }).catch(() => { if (request.current === id) { setLoading(false); setFailed(true); setMessage('Could not load saved readings. Your records have not been changed.'); } });
     return () => { request.current++; };
     // Write completion and manual refresh intentionally rerun the focused query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision, limit, refresh]));
   return <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
-    <Text style={[styles.title, { color: c.text }]}>Saved reading history</Text>
-    <Pressable accessibilityRole="button" onPress={() => setRefresh(v => v + 1)} style={styles.button}><Text style={[styles.body, { color: c.primary }]}>Refresh history</Text></Pressable>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}><Text style={[styles.title, { color: c.text }]}>Your timeline</Text>{(rows.length > 0 || failed) && <Pressable accessibilityRole="button" onPress={() => setRefresh(v => v + 1)} style={styles.button}><Text style={[styles.body, { color: c.primary }]}>Refresh</Text></Pressable>}</View>
+    {loading && <ActivityFeedback label="Gathering your readings…"/>}
+    {!loading && !failed && !rows.length && onAdd && onChat && <EmptyCollection title="Nothing logged yet. Want to start?" description="A reading or a symptom is all it takes. You can add it here, or tell Alalay what you measured." noun="a reading" onAdd={onAdd} onChat={onChat}/>}
+    {rows.length > 0 && <Text style={[styles.body, { color: c.textMuted }]}>{rows.length} recent entries · Latest {new Date(rows[0].recorded_at).toLocaleDateString()}</Text>}
     {!!message && <Text accessibilityLiveRegion="polite" style={[styles.body, { color: c.textMuted }]}>{message}</Text>}
     {rows.map(row => <View key={row.id} style={[styles.record, { borderColor: c.border }]}>
       <Text style={[styles.body, { color: c.text }]}>{readingLabel(row)}</Text>

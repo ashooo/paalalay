@@ -21,6 +21,7 @@ export default function AppTabs() {
     <Tabs.Screen name="directory" options={{ title: 'Nearby care', tabBarLabel: 'Care', tabBarIcon: ({ color }) => <Stethoscope color={color} size={22} strokeWidth={1.75} /> }} />
     <Tabs.Screen name="insights" options={{ href: null, title: 'Insights' }} />
     <Tabs.Screen name="scan" options={{ href: null, title: 'Scan prescription' }} />
+    <Tabs.Screen name="memories" options={{ href: null, title: 'Memories' }} />
     <Tabs.Screen name="chat" options={{ href: null }} />
   </Tabs>;
 }

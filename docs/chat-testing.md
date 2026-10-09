@@ -5,6 +5,11 @@ and use Metro **Reload**. These changes add no native module. A build predating
 the merged OCR dependency still needs one native rebuild. The `/chat` route
 redirects to **Assistant**. Expo Go and web cannot run the local model.
 
+If Metro reports an icon module missing inside `lucide-react-native` even though
+the file exists in `node_modules`, stop that dev server and restart with
+`npx expo start --dev-client --port 8087 --clear`. This refreshes Metro's file map;
+it does not rebuild the native app or change any database. Use Reload afterward.
+
 ## First launch
 
 Native startup creates an empty baseline SQLite database **only if the database
@@ -39,8 +44,9 @@ saved records are not sent to NHS.
 Each user turn permits five model completions. Multiple calls are rejected;
 invalid arguments, cancellations and service failures get one tool-free explanation.
 Successful identical writes are not repeated during the same turn. Stop cancels
-a pending review; an executing handler cannot be undone. New chat clears memory,
-not medical records. Conversation is not persisted. Thinking is disabled, reasoning
+a pending review; an executing handler cannot be undone. New chat clears the
+in-memory transcript; it keeps medical records and approved saved memories.
+Conversation is not persisted. Thinking is disabled, reasoning
 markers are removed, and responses appear when each completion finishes rather
 than token streaming. Context is 8,192 tokens; output reserves 512 tokens.
 
@@ -49,6 +55,29 @@ temperature and weight units must be explicit. This guard catches invented
 numbers and guessed units, but does not prove semantic correctness or validate
 medicine instructions against a prescription. Review every proposed field.
 The model does not prescribe, change doses or infer a catch-up schedule.
+
+## Saved memories and activity
+
+The assistant has 19 public tools, including `list_memories`, `remember_memory`
+and `forget_memory`. An explicit request to remember a lasting preference produces
+a review before saving. Forget reviews include the exact saved text and refuse a
+stale deletion if it changed. Manage memories opens a screen for viewing, editing
+and confirming removal. The approved separate `assistant-memory.db` is created
+only when absent; existing memory files are checked without repair. There is no
+web substitute, sample memory or automatic conversation archive.
+
+Up to 40 memories can be stored, each at most 300 characters. The latest 12 enter
+each completion as untrusted context within the existing token budget. They cannot
+authorize tool writes or establish prescription facts. Forgetting changes future
+context; start a new chat to remove text already present in the current transcript.
+The prompt discourages inferred medical facts and secrets, but users must still
+review every proposed memory.
+
+Animated dots identify actual model preparation, generation and tool execution.
+They stop during confirmation and honor the OS reduced-motion preference. They do
+not imply token streaming or expose private reasoning. Medicine and log entry
+fields open in sheets after Add, the dashboard logging action or a reviewed OCR
+handoff; overview screens show saved records, summaries or actionable empty states.
 
 ## Verification
 
@@ -74,6 +103,9 @@ On a native development build, verify these before release:
    a clickable source. Check model wording against the source and exact leaflet.
 7. Navigate away during preparation/generation, return, and reset a conversation.
    Check cleanup, keyboard layout, long reviews, dark mode and screen-reader labels.
+8. Ask to remember a reply preference. Cancel first, then confirm a second request;
+   verify only the confirmed memory survives a new chat and app restart. Edit and
+   forget it in Memories, and verify future context reflects those changes.
 
 Browser verification covers Home, saved insights and Assistant's native requirement;
 it cannot establish native inference or confirmation-card behavior with a real GGUF.

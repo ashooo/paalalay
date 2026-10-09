@@ -1,374 +1,64 @@
-import React, { useRef, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  useColorScheme,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Plus, ChartNoAxesCombined } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { logHealthMeasurement } from '@/services/api-client';
 import HealthHistory from '@/features/health/HealthHistory';
+import { CareButton, CareField, EntrySheet } from '@/components/care-ui';
+import { ActivityFeedback } from '@/components/activity-feedback';
 
-type LogTab = 'blood_pressure' | 'blood_sugar' | 'temperature' | 'weight' | 'symptom';
-
+type LogType = 'blood_pressure' | 'blood_sugar' | 'temperature' | 'weight' | 'symptom';
+const types: { type: LogType; label: string; unit: string }[] = [{ type: 'blood_pressure', label: 'Blood pressure', unit: 'mmHg' }, { type: 'blood_sugar', label: 'Blood glucose', unit: '' }, { type: 'temperature', label: 'Temperature', unit: '°C' }, { type: 'weight', label: 'Weight', unit: 'kg' }, { type: 'symptom', label: 'Symptom', unit: '' }];
 export default function HealthLogsScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
-  const [activeTab, setActiveTab] = useState<LogTab>('blood_pressure');
-
-  // Input states
-  const [systolic, setSystolic] = useState('');
-  const [diastolic, setDiastolic] = useState('');
-  const [glucose, setGlucose] = useState('');
-  const [temperature, setTemperature] = useState('');
-  const [weight, setWeight] = useState('');
-  const [symptom, setSymptom] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
-  const [revision, setRevision] = useState(0);
-  const saveLock = useRef(false);
-
-  async function saveReading() {
-    if (saveLock.current) return;
-    const required = activeTab === 'blood_pressure' ? [systolic, diastolic]
-      : [activeTab === 'blood_sugar' ? glucose : activeTab === 'temperature' ? temperature : activeTab === 'weight' ? weight : symptom];
-    if (required.some(value => !value.trim())) { setSaveMessage('Enter the required reading before saving.'); return; }
-    saveLock.current = true;
-    setSaving(true);
+  const c = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const params = useLocalSearchParams<{ add?: string }>();
+  const [open, setOpen] = useState(false);
+  const visible = open || params.add === '1';
+  const [type, setType] = useState<LogType>('blood_pressure');
+  const [value, setValue] = useState(''), [diastolic, setDiastolic] = useState(''), [notes, setNotes] = useState('');
+  const [unit, setUnit] = useState<'mg_dL' | 'mmol_L'>('mg_dL');
+  const [saving, setSaving] = useState(false), [message, setMessage] = useState(''), [revision, setRevision] = useState(0);
+  const lock = useRef(false);
+  function close() { setOpen(false); router.setParams({ add: undefined }); setMessage(''); }
+  function add() { setMessage(''); setValue(''); setDiastolic(''); setNotes(''); setOpen(true); }
+  async function save() {
+    if (lock.current) return;
+    if (!value.trim() || (type === 'blood_pressure' && !diastolic.trim())) { setMessage('Enter the reading you measured before saving.'); return; }
+    lock.current = true; setSaving(true); setMessage('');
     try {
-      const result = await logHealthMeasurement({
-        log_type: activeTab,
-        ...(activeTab === 'blood_pressure' ? { systolic: Number(systolic), diastolic: Number(diastolic) } : {}),
-        ...(activeTab === 'blood_sugar' ? { glucose_value: Number(glucose), glucose_unit: 'mg_dL' } : {}),
-        ...(activeTab === 'temperature' ? { temperature_c: Number(temperature) } : {}),
-        ...(activeTab === 'weight' ? { weight_kg: Number(weight) } : {}),
-        ...(activeTab === 'symptom' ? { symptom_name: symptom.trim() } : {}),
+      const result = await logHealthMeasurement({ log_type: type,
+        ...(type === 'blood_pressure' ? { systolic: Number(value), diastolic: Number(diastolic) } : {}),
+        ...(type === 'blood_sugar' ? { glucose_value: Number(value), glucose_unit: unit } : {}),
+        ...(type === 'temperature' ? { temperature_c: Number(value) } : {}),
+        ...(type === 'weight' ? { weight_kg: Number(value) } : {}),
+        ...(type === 'symptom' ? { symptom_name: value.trim() } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
-      setSaveMessage(result.status === 'success' ? 'Reading saved on this device.' : result.error.message);
-      if (result.status === 'success') setRevision(value => value + 1);
-    } catch { setSaveMessage('Could not save this reading.'); }
-    finally { saveLock.current = false; setSaving(false); }
+      if (result.status !== 'success') throw new Error(result.error.message);
+      setRevision(n => n + 1); close(); setMessage('Reading saved. Your history is up to date.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save this reading. Try again.'); }
+    finally { lock.current = false; setSaving(false); }
   }
-
-  return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.contentContainer}
-    >
-      {/* Module Owner Header */}
-
-
-      <Text style={[styles.heading, { color: theme.text }]}>Health Logs & Vitals</Text>
-      <Text style={[styles.subheading, { color: theme.textMuted }]}>
-        Record the readings you measured.
-      </Text>
-
-      {/* Category Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsRow}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            {
-              backgroundColor: activeTab === 'blood_pressure' ? theme.primary : theme.surfaceVariant,
-            },
-          ]}
-          onPress={() => setActiveTab('blood_pressure')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              { color: activeTab === 'blood_pressure' ? theme.onPrimary : theme.text },
-            ]}
-          >
-            Blood Pressure
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            {
-              backgroundColor: activeTab === 'blood_sugar' ? theme.primary : theme.surfaceVariant,
-            },
-          ]}
-          onPress={() => setActiveTab('blood_sugar')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              { color: activeTab === 'blood_sugar' ? theme.onPrimary : theme.text },
-            ]}
-          >
-            Blood Glucose
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            {
-              backgroundColor: activeTab === 'temperature' ? theme.primary : theme.surfaceVariant,
-            },
-          ]}
-          onPress={() => setActiveTab('temperature')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              { color: activeTab === 'temperature' ? theme.onPrimary : theme.text },
-            ]}
-          >
-            Temperature
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            {
-              backgroundColor: activeTab === 'weight' ? theme.primary : theme.surfaceVariant,
-            },
-          ]}
-          onPress={() => setActiveTab('weight')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              { color: activeTab === 'weight' ? theme.onPrimary : theme.text },
-            ]}
-          >
-            Weight
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            {
-              backgroundColor: activeTab === 'symptom' ? theme.primary : theme.surfaceVariant,
-            },
-          ]}
-          onPress={() => setActiveTab('symptom')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              { color: activeTab === 'symptom' ? theme.onPrimary : theme.text },
-            ]}
-          >
-            Symptoms
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Dynamic Entry Form */}
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {!!saveMessage && <Text accessibilityLiveRegion="polite" style={{ color: theme.text }}>{saveMessage}</Text>}
-        {activeTab === 'blood_pressure' && (
-          <View>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Log Blood Pressure</Text>
-            <Text style={[styles.label, { color: theme.textMuted }]}>Systolic (mmHg) *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="e.g. 120"
-              placeholderTextColor={theme.textMuted}
-              value={systolic}
-              onChangeText={setSystolic}
-            />
-            <Text style={[styles.label, { color: theme.textMuted }]}>Diastolic (mmHg) *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="e.g. 80"
-              placeholderTextColor={theme.textMuted}
-              value={diastolic}
-              onChangeText={setDiastolic}
-            />
-          </View>
-        )}
-
-        {activeTab === 'blood_sugar' && (
-          <View>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Log Blood Glucose</Text>
-            <Text style={[styles.label, { color: theme.textMuted }]}>Glucose Value (mg/dL) *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="e.g. 95"
-              placeholderTextColor={theme.textMuted}
-              value={glucose}
-              onChangeText={setGlucose}
-            />
-          </View>
-        )}
-
-        {activeTab === 'temperature' && (
-          <View>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Log Body Temperature</Text>
-            <Text style={[styles.label, { color: theme.textMuted }]}>Temperature (°C) *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="e.g. 36.8"
-              placeholderTextColor={theme.textMuted}
-              value={temperature}
-              onChangeText={setTemperature}
-            />
-          </View>
-        )}
-
-        {activeTab === 'weight' && (
-          <View>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Log Body Weight</Text>
-            <Text style={[styles.label, { color: theme.textMuted }]}>Weight (kg) *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              keyboardType="numeric"
-              placeholder="e.g. 68.5"
-              placeholderTextColor={theme.textMuted}
-              value={weight}
-              onChangeText={setWeight}
-            />
-          </View>
-        )}
-
-        {activeTab === 'symptom' && (
-          <View>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Log Symptom</Text>
-            <Text style={[styles.label, { color: theme.textMuted }]}>Symptom Description *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
-              placeholder="e.g. Mild headache, dizziness"
-              placeholderTextColor={theme.textMuted}
-              value={symptom}
-              onChangeText={setSymptom}
-            />
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: theme.primary }]}
-          activeOpacity={0.8}
-          onPress={() => void saveReading()}
-          disabled={saving}
-        >
-          <Ionicons name="checkmark-done" size={20} color={theme.onPrimary} />
-          <Text style={[styles.saveButtonText, { color: theme.onPrimary }]}>
-            {saving ? 'Saving…' : 'Save reading'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <HealthHistory revision={revision} />
-
+  const selected = types.find(item => item.type === type)!;
+  return <>
+    <ScrollView style={{ flex: 1, backgroundColor: c.background }} contentContainerStyle={styles.content}>
+      <Text style={[styles.title, { color: c.text }]}>Your health, one entry at a time.</Text><Text style={[styles.body, { color: c.textMuted }]}>Keep a timeline of your readings and symptoms. Add an entry when you have something to record.</Text>
+      <View style={styles.actions}><CareButton label="Add a reading" onPress={add} icon={<Plus size={20} color={c.onPrimary}/>}/><CareButton label="See insights" secondary onPress={() => router.push('/insights')} icon={<ChartNoAxesCombined size={20} color={c.primary}/>}/></View>
+      {!visible && !!message && <Text accessibilityLiveRegion="polite" style={[styles.body, { color: c.primary }]}>{message}</Text>}
+      <HealthHistory revision={revision} onAdd={add} onChat={() => router.push('/assistant')}/>
     </ScrollView>
-  );
+    <EntrySheet title="Add a reading" visible={visible} busy={saving} onClose={close}>
+      <Text style={[styles.body, { color: c.textMuted }]}>Choose what you measured. The app records your values without diagnosing them.</Text>
+      <View style={styles.actions}>{types.map(item => <Pressable key={item.type} accessibilityRole="radio" accessibilityState={{ checked: type === item.type, disabled: saving }} disabled={saving} onPress={() => { setType(item.type); setValue(''); setDiastolic(''); setMessage(''); }} style={[styles.chip, { backgroundColor: type === item.type ? c.primary : c.surfaceVariant }]}><Text style={[styles.chipText, { color: type === item.type ? c.onPrimary : c.primary }]}>{item.label}</Text></Pressable>)}</View>
+      {type === 'blood_sugar' && <View style={styles.actions}>{(['mg_dL', 'mmol_L'] as const).map(option => <Pressable accessibilityRole="radio" accessibilityLabel={option === 'mg_dL' ? 'mg/dL' : 'mmol/L'} accessibilityState={{ checked: unit === option }} key={option} disabled={saving} onPress={() => setUnit(option)} style={[styles.chip, { backgroundColor: unit === option ? c.primary : c.surfaceVariant }]}><Text style={[styles.chipText, { color: unit === option ? c.onPrimary : c.primary }]}>{option === 'mg_dL' ? 'mg/dL' : 'mmol/L'}</Text></Pressable>)}</View>}
+      <CareField label={type === 'blood_pressure' ? 'Systolic (mmHg)' : type === 'symptom' ? 'Symptom in your words' : `${selected.label} ${type === 'blood_sugar' ? (unit === 'mg_dL' ? '(mg/dL)' : '(mmol/L)') : `(${selected.unit})`}`} value={value} onChange={setValue} numeric={type !== 'symptom'} multiline={type === 'symptom'} disabled={saving}/>
+      {type === 'blood_pressure' && <CareField label="Diastolic (mmHg)" value={diastolic} onChange={setDiastolic} numeric disabled={saving}/>}
+      <CareField label="Notes (optional)" value={notes} onChange={setNotes} multiline disabled={saving}/>
+      {!!message && <Text accessibilityRole="alert" style={[styles.body, { color: c.error }]}>{message}</Text>}
+      {saving && <ActivityFeedback label="Saving your reading…"/>}
+      <CareButton label={saving ? 'Saving…' : 'Save reading'} onPress={() => void save()} disabled={saving}/><CareButton label="Cancel" secondary onPress={close} disabled={saving}/>
+    </EntrySheet>
+  </>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  ownerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    gap: 6,
-    marginBottom: 10,
-  },
-  ownerBadgeText: { fontFamily: 'Manrope_700Bold',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  heading: { fontFamily: 'Manrope_800ExtraBold',
-    fontSize: 24,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  subheading: { fontFamily: 'Manrope_400Regular',
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  tabButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  tabButtonText: { fontFamily: 'Manrope_700Bold',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
-  },
-  cardTitle: { fontFamily: 'Manrope_700Bold',
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  label: { fontFamily: 'Manrope_600SemiBold',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  input: { fontFamily: 'Manrope_400Regular',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  saveButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    gap: 8,
-    marginTop: 4,
-  },
-  saveButtonText: { fontFamily: 'Manrope_700Bold',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  contractsCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-    gap: 6,
-  },
-  contractsTitle: { fontFamily: 'Manrope_700Bold',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  contractItem: { fontFamily: 'Manrope_400Regular',
-    fontSize: 13,
-  },
-  boldText: {
-    fontWeight: '700',
-  },
-});
+const styles = StyleSheet.create({ content: { padding: 20, paddingBottom: 40, gap: 16, maxWidth: 900, width: '100%', alignSelf: 'center' }, title: { fontFamily: 'Manrope_700Bold', fontSize: 28, lineHeight: 36 }, body: { fontFamily: 'Manrope_400Regular', fontSize: 15, lineHeight: 23 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, chip: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16 }, chipText: { fontFamily: 'Manrope_600SemiBold', fontSize: 14 } });

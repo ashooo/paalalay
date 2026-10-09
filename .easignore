@@ -1,0 +1,20 @@
+# Source-only CNG build; exclude local data, models and test artifacts.
+.git
+node_modules
+.expo
+android
+ios
+tests
+*.gguf
+*.db
+*.db-shm
+*.db-wal
+assets/models/*
+!assets/models/README.md
+.env
+.env.*
+*.pem
+*.jks
+*.keystore
+README.md
+docs

@@ -7,16 +7,21 @@ import { recordMedicationIntake, setMedicationSchedule } from '@/services/api-cl
 import { getMedicineManagement, updateMedicine } from './management-service';
 import { enableReminders, cancelMedicineReminders } from './native-reminders';
 import { todayOccurrences, type MedicineRow } from './occurrences';
+import { EmptyCollection, EntrySheet } from '@/components/care-ui';
+import { ActivityFeedback } from '@/components/activity-feedback';
 
 type Data = Awaited<ReturnType<typeof getMedicineManagement>>;
 function ManagementButton({ label, onPress, secondary, busy, colors: c }: { label: string; onPress: () => void; secondary: boolean; busy: boolean; colors: (typeof Colors)['light' | 'dark'] }) {
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onPress} style={[styles.button, { backgroundColor: secondary ? c.surfaceVariant : c.primary, opacity: busy ? 0.5 : 1 }]}><Text style={[styles.label, { color: secondary ? c.primary : c.onPrimary }]}>{label}</Text></Pressable>;
 }
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-export default function MedicineManagement({ revision }: { revision: number }) {
+export default function MedicineManagement({ revision, onAdd, onChat }: { revision: number; onAdd: () => void; onChat: () => void }) {
   const c = Colors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   const [data, setData] = useState<Data>({ medicines: [], schedules: [], intakes: [] });
   const [message, setMessage] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const [reload, setReload] = useState(0);
@@ -33,7 +38,8 @@ export default function MedicineManagement({ revision }: { revision: number }) {
   useFocusEffect(useCallback(() => {
     const id = ++request.current;
     setNow(new Date());
-    void getMedicineManagement().then(result => { if (id === request.current) { setData(result); setMessage(''); } }).catch(error => { if (id === request.current) { setData({ medicines: [], schedules: [], intakes: [] }); setMessage(error.message); } });
+    setLoadError(false);
+    void getMedicineManagement().then(result => { if (id === request.current) { setData(result); setMessage(''); setLoaded(true); } }).catch(() => { if (id === request.current) { setLoadError(true); setLoaded(true); setMessage('Your medicines could not be loaded. Your saved records have not been changed.'); } });
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => { request.current++; clearInterval(timer); };
     // Write completion and manual refresh intentionally rerun the focused query.
@@ -85,10 +91,11 @@ export default function MedicineManagement({ revision }: { revision: number }) {
   const occurrences = todayOccurrences(data.medicines, data.schedules, data.intakes, now);
   return <View style={styles.section}>
     <Text style={[styles.title, { color: c.text }]}>Your medicines</Text>
-    {<ManagementButton label={'Refresh medicine list'} onPress={() => setReload(v => v + 1)} secondary={true} busy={busy} colors={c}/>}
-    {<ManagementButton label={'Refresh phone reminders'} onPress={() => void run(async () => { const latest = await getMedicineManagement(); return enableReminders(latest.medicines, latest.schedules); })} secondary={true} busy={busy} colors={c}/>}
+    {!loaded && <ActivityFeedback label="Gathering your medicines…"/>}
+    {(loadError || data.medicines.length > 0) && <View style={styles.days}><ManagementButton label="Refresh" onPress={() => { setMessage(''); setReload(v => v + 1); }} secondary busy={busy} colors={c}/>{data.medicines.length > 0 && <ManagementButton label="Enable phone reminders" onPress={() => void run(async () => { const latest = await getMedicineManagement(); return enableReminders(latest.medicines, latest.schedules); })} secondary busy={busy} colors={c}/>}</View>}
     {!!message && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.body, { color: c.text }]}>{message}</Text>}
-    {!data.medicines.length && <Text style={[styles.body, { color: c.textMuted }]}>No saved medicines to show.</Text>}
+    {loaded && !loadError && !data.medicines.length && <EmptyCollection title="Nothing here yet. Start with one medicine?" description="Add from your prescription, scan it, or ask Alalay to help. You choose the reminder times." noun="a medicine" onAdd={onAdd} onChat={onChat}/>}
+    {data.medicines.length > 0 && <Text style={[styles.body, { color: c.textMuted }]}>{data.medicines.filter(m => m.is_active).length} active medicines · {occurrences.length} reminders today</Text>}
     {data.medicines.map(medicine => <View key={medicine.id} style={[styles.card, { borderColor: c.border, backgroundColor: c.surface }]}>
       <Text style={[styles.subtitle, { color: c.text }]}>{medicine.name} · {medicine.strength_text}</Text>
       <Text style={[styles.body, { color: c.textMuted }]}>{medicine.is_active ? 'Tracking active' : 'Tracking paused'}</Text>
@@ -97,7 +104,7 @@ export default function MedicineManagement({ revision }: { revision: number }) {
       {<ManagementButton label={`Manage ${medicine.name}`} onPress={() => select(medicine)} secondary={true} busy={busy} colors={c}/>}
       {<ManagementButton label={medicine.is_active ? `Pause tracking for ${medicine.name}` : `Resume tracking for ${medicine.name}`} onPress={() => void run(() => toggle(medicine))} secondary={true} busy={busy} colors={c}/>}
     </View>)}
-    {selected && <View style={[styles.card, { borderColor: c.primary, backgroundColor: c.surface }]}>
+    <EntrySheet visible={Boolean(selected)} title={selected ? `Manage ${selected.name}` : 'Manage medicine'} onClose={() => setSelected(undefined)} busy={busy}>{selected && <View style={{ gap: 12 }}>
       <Text style={[styles.subtitle, { color: c.text }]}>Manage {selected.name}</Text>
       {input('Medicine name', name, setName)}<MedicineSuggestions value={name} onSelect={setName} disabled={busy} />{input('Strength', strength, setStrength)}
       {input('Prescription instructions (including food instructions)', instructions, setInstructions)}
@@ -112,7 +119,8 @@ export default function MedicineManagement({ revision }: { revision: number }) {
         {<ManagementButton label={'Save schedule and enable reminders'} onPress={() => void run(saveSchedule)} secondary={false} busy={busy} colors={c}/>}
       </>}
       {<ManagementButton label={'Close without saving'} onPress={() => setSelected(undefined)} secondary={true} busy={busy} colors={c}/>}
-    </View>}
+    </View>}</EntrySheet>
+    {data.medicines.length > 0 && <>
     <Text style={[styles.title, { color: c.text }]}>Today’s reminders</Text>
     {!occurrences.length && <Text style={[styles.body, { color: c.textMuted }]}>No reminders scheduled for today.</Text>}
     {occurrences.map(item => <View key={`${item.schedule_id}:${item.scheduled_for}`} style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
@@ -128,12 +136,13 @@ export default function MedicineManagement({ revision }: { revision: number }) {
     </View>)}
     <Text style={[styles.body, { color: c.textMuted }]}>Not recorded means no intake was logged, not proof of a missed dose. For a missed dose, follow the medicine leaflet or ask your pharmacist. The app never doubles doses or shifts future doses.</Text>
     <Text style={[styles.title, { color: c.text }]}>Intake history</Text>
-    {!data.intakes.length && <Text style={[styles.body, { color: c.textMuted }]}>No intake records yet.</Text>}
-    {data.intakes.slice(0, 30).map(event => <View key={event.id} style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+    {!data.intakes.length ? <Text style={[styles.body, { color: c.textMuted }]}>Taken and skipped entries will appear here when you record them.</Text> : <ManagementButton label={showHistory ? 'Hide intake history' : `View ${data.intakes.length} intake records`} onPress={() => setShowHistory(value => !value)} secondary busy={busy} colors={c}/>}
+    {showHistory && data.intakes.slice(0, 30).map(event => <View key={event.id} style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
       <Text style={[styles.body, { color: c.text }]}>{data.medicines.find(m => m.id === event.medication_id)?.name || 'Saved medicine'} · {event.status}</Text>
       <Text style={[styles.body, { color: c.textMuted }]}>Scheduled: {new Date(event.scheduled_for).toLocaleString()}{'\n'}Recorded: {new Date(event.recorded_at).toLocaleString()}</Text>
     </View>)}
-    {data.intakes.length > 30 && <Text style={[styles.body, { color: c.textMuted }]}>Showing the 30 most recent intake records.</Text>}
+    {showHistory && data.intakes.length > 30 && <Text style={[styles.body, { color: c.textMuted }]}>Showing the 30 most recent intake records.</Text>}
+    </>}
   </View>;
 }
 const styles = StyleSheet.create({
