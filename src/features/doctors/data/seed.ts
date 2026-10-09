@@ -15,12 +15,29 @@ import { PLACEHOLDER_DOCTORS } from './placeholder-doctors';
  * 3. It is fully idempotent via `INSERT OR IGNORE` on the primary key `id`.
  * 4. It can be triggered cleanly at app bootstrap, in dev/demo screens, or within unit/integration tests.
  */
+let seedPromise: Promise<{ insertedCount: number; totalPlaceholders: number }> | null = null;
+
 export async function seedPlaceholderDoctors(
   db?: SQLiteDatabase
 ): Promise<{ insertedCount: number; totalPlaceholders: number }> {
-  const database = db ?? (await initializeDatabase());
+  if (seedPromise) return seedPromise;
 
-  let insertedCount = 0;
+  seedPromise = (async () => {
+    const database = db ?? (await initializeDatabase());
+
+    // Check if doctors are already seeded to skip unnecessary transactions
+    try {
+      const existing = await database.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM doctors;'
+      );
+      if (existing && existing.count > 0) {
+        return { insertedCount: 0, totalPlaceholders: PLACEHOLDER_DOCTORS.length };
+      }
+    } catch {
+      // If table doesn't exist yet, proceed with insert attempt
+    }
+
+    let insertedCount = 0;
 
   await database.withTransactionAsync(async () => {
     for (const doc of PLACEHOLDER_DOCTORS) {
@@ -59,8 +76,11 @@ export async function seedPlaceholderDoctors(
     }
   });
 
-  return {
-    insertedCount,
-    totalPlaceholders: PLACEHOLDER_DOCTORS.length,
-  };
+    return {
+      insertedCount,
+      totalPlaceholders: PLACEHOLDER_DOCTORS.length,
+    };
+  })();
+
+  return seedPromise;
 }
