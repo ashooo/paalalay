@@ -46,7 +46,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:agent": "node tests/dispatcher.test.cjs"
+    "test:agent": "node tests/run-agent-tests.cjs"
   },
   "private": true
 }

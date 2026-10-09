@@ -179,15 +179,23 @@ test('native model adapter validates paths, passes tool definitions, and release
   let completionOptions;
   let finish;
   let releases = 0;
+  let formattedOptions;
+  let stops = 0;
   Module._load = function(request, ...args) {
     if (request === 'llama.rn') return {
       initLlama: async (params) => {
         options = params;
         return {
+          getFormattedChat: async (messages, template, params) => {
+            formattedOptions = params;
+            return { prompt: JSON.stringify(messages) };
+          },
+          tokenize: async () => ({ tokens: [1, 2, 3] }),
+          stopCompletion: async () => { stops++; },
           completion: async (params) => {
             completionOptions = params;
             await new Promise((resolve) => { finish = resolve; });
-            return { text: 'raw', content: 'hello', tool_calls: [{ function: { name: 'log_blood_pressure', arguments: '{"systolic":120,"diastolic":80}' } }] };
+            return { text: 'raw', content: 'hello', tool_calls: [{ id: 'original_call_id', function: { name: 'log_blood_pressure', arguments: '{"systolic":120,"diastolic":80}' } }] };
           },
           release: async () => { releases++; },
         };
@@ -204,16 +212,22 @@ test('native model adapter validates paths, passes tool definitions, and release
     await runtime.load('file:///models/example.gguf');
     assert.equal(options.model, 'file:///models/example.gguf');
     assert.equal(options.n_gpu_layers, 0);
+    assert.equal(await runtime.countTokens([{ role: 'user', content: 'Hello' }], false), 3);
+    assert.equal(formattedOptions.tools.length, 14);
+    assert.equal(formattedOptions.tool_choice, 'none');
     const pending = runtime.complete('Record blood pressure 120/80', true);
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(completionOptions.tools.length, 14);
     assert.equal(completionOptions.parallel_tool_calls, false);
+    await runtime.stop();
+    assert.equal(stops, 1);
     const disposal = runtime.dispose();
     assert.equal(releases, 0);
     finish();
     const result = await pending;
     assert.equal(result.text, 'hello');
     assert.equal(result.toolCalls[0].name, 'log_blood_pressure');
+    assert.equal(result.toolCalls[0].id, 'original_call_id');
     await disposal;
     assert.equal(releases, 1);
     await assert.rejects(runtime.load('file:///models/example.gguf'), /closed/);
