@@ -35,10 +35,12 @@ notification permissions/delivery, accessibility and app background/resume behav
 This cleanup does not build, sign, upload or publish an APK. No EAS project or
 signing configuration is silently created.
 
-Packaging is explicitly on hold at the user's request. `eas.json` prepares native
-development and standalone APK profiles for later. `.easignore` excludes local
-SQLite files, model binaries, tests and development artifacts. EAS authentication
-is currently unavailable (`whoami`: not logged in); no cloud build was started.
+Packaging is now authorized. `eas.json` configures native development and standalone
+APK profiles. `.easignore` excludes local SQLite files, model binaries, tests,
+credentials and development artifacts. Android automatic cloud backup is disabled.
+The initial packaging check found EAS signed out; authentication/project linking
+and release signing are required before a cloud APK can be produced. See `setup.md`
+for the actual build commands. Do not describe an APK as built until EAS completes.
 
 `expo-doctor` currently passes 20/21 checks and reports `rn-mlkit-ocr` as untested
 on the New Architecture. Verify that module on the actual SDK 57 native build.

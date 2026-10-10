@@ -9,6 +9,10 @@ tests
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+credentials.json
+artifacts
 assets/models/*
 !assets/models/README.md
 .env

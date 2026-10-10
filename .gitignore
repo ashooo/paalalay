@@ -51,3 +51,8 @@ example
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+credentials.json
+*.keystore
+/artifacts/
