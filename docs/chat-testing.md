@@ -5,12 +5,12 @@ and use Metro **Reload**. These changes add no native module. A build predating
 the merged OCR dependency still needs one native rebuild. The `/chat` route
 redirects to **Assistant**. Expo Go and web cannot run the local model.
 
-The app imports Lucide through `src/components/icons.ts`, which uses the package's
-public per-icon exports. This avoids traversing the full icon catalog, which caused
-recurring Windows Metro resolution errors for unrelated icons even when their files
-were present. If an older server still reports the catalog entry file, stop it and
+The app uses the existing Expo MaterialCommunityIcons library through
+`src/components/icons.ts`. Its font is preloaded alongside Manrope. Lucide was
+removed after recurring Windows Metro resolution errors persisted with both its
+catalog and per-icon imports. If an older server still reports Lucide, stop it and
 restart with `npx expo start --dev-client --port 8087 --clear`, then use Reload.
-No native rebuild or database change is required for this JavaScript import fix.
+No native rebuild or database change is required for this icon replacement.
 
 ## First launch
 
